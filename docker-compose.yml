@@ -1,0 +1,94 @@
+# ============================================================
+# SmartAttend — Docker Compose
+# Services: FastAPI backend + MySQL 8.0 + Nginx reverse proxy
+# ============================================================
+#
+# Usage:
+#   Development:  docker-compose up --build
+#   Production:   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   Copy backend/.env.example → backend/.env and fill in values.
+
+version: '3.9'
+
+services:
+
+  # ─── MySQL Database ──────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: smartattend_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-1234}
+      MYSQL_DATABASE: ${DB_NAME:-smart_attendance}
+      MYSQL_USER: smartattend
+      MYSQL_PASSWORD: ${DB_PASSWORD:-1234}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - smartattend_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-1234}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ─── FastAPI Backend ─────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smartattend_api
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - smartattend_net
+    volumes:
+      - ./backend:/app          # Hot-reload in development; remove in prod
+    command: >
+      uvicorn main:app
+        --host 0.0.0.0
+        --port 8000
+        --reload
+        --log-level debug
+
+  # ─── Nginx Reverse Proxy ─────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: smartattend_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro          # Mount SSL certs (prod)
+    depends_on:
+      - api
+    networks:
+      - smartattend_net
+
+# ─── Networks ────────────────────────────────────────────
+networks:
+  smartattend_net:
+    driver: bridge
+
+# ─── Volumes ─────────────────────────────────────────────
+volumes:
+  mysql_data:
+    driver: local
