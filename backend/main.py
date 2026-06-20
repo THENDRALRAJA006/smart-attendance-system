@@ -3,15 +3,17 @@
 # ============================================================
 
 import logging
+import traceback
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.database import init_db
 from app.services.rekognition_service import rekognition_service
-from app.routes import auth, student, faculty, admin
+from app.routes import auth, student, faculty, admin, attendance
 
 # ─── Logging ─────────────────────────────────────────────────
 logging.basicConfig(
@@ -70,7 +72,7 @@ app = FastAPI(
 # ─── Middleware ───────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origin_regex="https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,6 +85,35 @@ app.include_router(auth.router)
 app.include_router(student.router)
 app.include_router(faculty.router)
 app.include_router(admin.router)
+app.include_router(attendance.router)
+
+
+# ─── Global Exception Handler ────────────────────────────────
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch any unhandled exception and return structured JSON + log full traceback."""
+    tb = traceback.format_exc()
+    logger.error(
+        f"Unhandled exception on {request.method} {request.url}\n{tb}"
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "error": type(exc).__name__,
+            "message": str(exc),
+            "path": str(request.url.path),
+        },
+    )
+
+
+# ─── Request Logging Middleware ───────────────────────────────
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.info(f"→ {request.method} {request.url.path}")
+    response = await call_next(request)
+    logger.info(f"← {request.method} {request.url.path} [{response.status_code}]")
+    return response
 
 
 # ─── Health Check ────────────────────────────────────────────

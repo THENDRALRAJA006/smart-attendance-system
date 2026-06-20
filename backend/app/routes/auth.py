@@ -41,7 +41,8 @@ def _make_student_payload(student: Student) -> dict:
         "phone_number":   student.phone_number,
         "face_id":        student.face_id,
         "face_image_url": student.face_image_url,
-        "created_at":     student.created_at.isoformat(),
+        # created_at may be None if DB default hasn't flushed yet
+        "created_at":     student.created_at.isoformat() if student.created_at else None,
     }
 
 
@@ -109,75 +110,126 @@ async def login(
     db: Session = Depends(get_db),
 ):
     """Authenticate user by role and return JWT access + refresh tokens."""
-    if request.role == "student":
-        user = db.query(Student).filter(Student.email == request.email).first()
-        if not user or not verify_password(request.password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
-        return {
-            "access_token":  create_access_token(subject=user.id, role="student"),
-            "refresh_token": create_refresh_token(subject=user.id, role="student"),
-            "token_type":    "bearer",
-            "role":          "student",
-            "user":          _make_student_payload(user),
-        }
+    logger.info(f"Login attempt: email={request.email} role={request.role}")
 
-    elif request.role == "faculty":
-        user = db.query(Faculty).filter(Faculty.email == request.email).first()
-        if not user or not verify_password(request.password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
-        # Fetch subjects assigned to this faculty via junction table
-        assigned_subjects = (
-            db.query(Subject)
-            .join(FacultySubject, FacultySubject.subject_id == Subject.id)
-            .filter(FacultySubject.faculty_id == user.id)
-            .all()
-        )
-        subjects_list = [
-            {
-                "id":           s.id,
-                "subject_name": s.subject_name,
-                "subject_code": s.subject_code,
-                "department":   s.department,
-                "faculty_id":   s.faculty_id,
+    try:
+        if request.role == "student":
+            user = db.query(Student).filter(Student.email == request.email).first()
+            logger.info(f"Student lookup result: {'found' if user else 'not found'}")
+            if not user or not verify_password(request.password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid email or password",
+                )
+            payload = _make_student_payload(user)
+            logger.info(f"Student login success: id={user.id}")
+            return {
+                "access_token":  create_access_token(subject=user.id, role="student"),
+                "refresh_token": create_refresh_token(subject=user.id, role="student"),
+                "token_type":    "bearer",
+                "role":          "student",
+                "user":          payload,
             }
-            for s in assigned_subjects
-        ]
-        return {
-            "access_token":  create_access_token(subject=user.id, role="faculty"),
-            "refresh_token": create_refresh_token(subject=user.id, role="faculty"),
-            "token_type":    "bearer",
-            "role":          "faculty",
-            "user":          _make_faculty_payload(user, subjects_list),
-        }
 
-    elif request.role == "admin":
-        user = db.query(Admin).filter(Admin.email == request.email).first()
-        if not user or not verify_password(request.password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
+        elif request.role == "faculty":
+            user = db.query(Faculty).filter(Faculty.email == request.email).first()
+            logger.info(f"Faculty lookup result: {'found' if user else 'not found'}")
+            if not user or not verify_password(request.password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid email or password",
+                )
+            assigned_subjects = (
+                db.query(Subject)
+                .join(FacultySubject, FacultySubject.subject_id == Subject.id)
+                .filter(FacultySubject.faculty_id == user.id)
+                .all()
             )
+            subjects_list = [
+                {
+                    "id":           s.id,
+                    "subject_name": s.subject_name,
+                    "subject_code": s.subject_code,
+                    "department":   s.department,
+                    "faculty_id":   s.faculty_id,
+                }
+                for s in assigned_subjects
+            ]
+            logger.info(f"Faculty login success: id={user.id}, subjects={len(subjects_list)}")
+            return {
+                "access_token":  create_access_token(subject=user.id, role="faculty"),
+                "refresh_token": create_refresh_token(subject=user.id, role="faculty"),
+                "token_type":    "bearer",
+                "role":          "faculty",
+                "user":          _make_faculty_payload(user, subjects_list),
+            }
+
+        elif request.role == "admin":
+            user = db.query(Admin).filter(Admin.email == request.email).first()
+            logger.info(f"Admin lookup result: {'found' if user else 'not found'}")
+            if not user or not verify_password(request.password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid email or password",
+                )
+            logger.info(f"Admin login success: id={user.id}")
+            return {
+                "access_token":  create_access_token(subject=user.id, role="admin"),
+                "refresh_token": create_refresh_token(subject=user.id, role="admin"),
+                "token_type":    "bearer",
+                "role":          "admin",
+                "user":          {"id": user.id, "name": user.name, "email": user.email},
+            }
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role",
+        )
+
+    except HTTPException:
+        raise  # Let FastAPI handle 401/400/404 normally
+    except Exception as exc:
+        import traceback
+        logger.error(
+            f"Login 500 for {request.email} ({request.role}):\n{traceback.format_exc()}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {type(exc).__name__}: {str(exc)}",
+        )
+
+
+# ─── GET /auth/debug ───────────────────────────────────────
+@router.get("/debug")
+async def debug_db(db: Session = Depends(get_db)):
+    """
+    Diagnostic endpoint: verifies DB connection and returns row counts.
+    Remove or secure before go-live.
+    """
+    try:
+        admin_count   = db.query(Admin).count()
+        student_count = db.query(Student).count()
+        faculty_count = db.query(Faculty).count()
+        # Test password hashing round-trip
+        test_hash = hash_password("TestPass@123")
+        hash_ok   = verify_password("TestPass@123", test_hash)
         return {
-            "access_token":  create_access_token(subject=user.id, role="admin"),
-            "refresh_token": create_refresh_token(subject=user.id, role="admin"),
-            "token_type":    "bearer",
-            "role":          "admin",
-            "user":          {"id": user.id, "name": user.name, "email": user.email},
+            "db_connected":   True,
+            "admins":         admin_count,
+            "students":       student_count,
+            "faculty":        faculty_count,
+            "bcrypt_ok":      hash_ok,
+        }
+    except Exception as exc:
+        import traceback
+        return {
+            "db_connected": False,
+            "error":        type(exc).__name__,
+            "detail":       str(exc),
+            "traceback":    traceback.format_exc(),
         }
 
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Invalid role",
-    )
 
-
-# ─── POST /auth/refresh ───────────────────────────────────────
 
 @router.post("/refresh", response_model=TokenRefreshResponse)
 async def refresh_token(
