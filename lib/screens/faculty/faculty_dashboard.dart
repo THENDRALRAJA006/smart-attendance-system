@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/faculty_controller.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/attendance_badge.dart';
 import '../../widgets/glassmorphism_card.dart';
@@ -59,6 +60,23 @@ class FacultyDashboard extends StatelessWidget {
                           );
                         }),
                       ),
+                      // QR Generator Button
+                      GestureDetector(
+                        onTap: () => Get.toNamed(AppConstants.routeQrGenerator),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: AppTheme.accent.withValues(alpha: 0.3)),
+                          ),
+                          child: const Icon(Icons.qr_code_rounded,
+                              color: AppTheme.accent, size: 20),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       // Create Session Button
                       GestureDetector(
                         onTap: () => _showCreateSessionDialog(context, faculty),

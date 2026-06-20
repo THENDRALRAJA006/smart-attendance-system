@@ -284,19 +284,30 @@ class StudentDashboard extends StatelessWidget {
 
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                // ─── Recent History ───────────────────────────
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(24, 0, 24, 16),
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        const Text(
                           'Recent Activity',
                           style: TextStyle(
                             color: AppTheme.textPrimary,
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              Get.toNamed(AppConstants.routeAttendanceHistory),
+                          child: const Text(
+                            'See All',
+                            style: TextStyle(
+                              color: AppTheme.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],
@@ -475,6 +486,49 @@ class StudentDashboard extends StatelessWidget {
             }),
             const Divider(color: AppTheme.bgCardLight),
             ListTile(
+              leading: const Icon(Icons.person_rounded,
+                  color: AppTheme.primary),
+              title: const Text('My Profile',
+                  style: TextStyle(color: AppTheme.textPrimary)),
+              onTap: () {
+                Get.back();
+                Get.toNamed(AppConstants.routeProfile);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bar_chart_rounded,
+                  color: AppTheme.accent),
+              title: const Text('Attendance Reports',
+                  style: TextStyle(color: AppTheme.textPrimary)),
+              onTap: () {
+                Get.back();
+                Get.toNamed(AppConstants.routeReports);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.qr_code_scanner_rounded,
+                  color: AppTheme.success),
+              title: const Text('Scan QR Attendance',
+                  style: TextStyle(color: AppTheme.textPrimary)),
+              subtitle: const Text('Fallback when BLE unavailable',
+                  style: TextStyle(color: AppTheme.textHint, fontSize: 11)),
+              onTap: () {
+                Get.back();
+                Get.toNamed(AppConstants.routeQrScanner);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_rounded,
+                  color: AppTheme.warning),
+              title: const Text('Attendance History',
+                  style: TextStyle(color: AppTheme.textPrimary)),
+              onTap: () {
+                Get.back();
+                Get.toNamed(AppConstants.routeAttendanceHistory);
+              },
+            ),
+            const Divider(color: AppTheme.bgCardLight),
+            ListTile(
               leading: const Icon(Icons.logout_rounded,
                   color: AppTheme.error),
               title: const Text('Logout',
@@ -484,6 +538,7 @@ class StudentDashboard extends StatelessWidget {
                 auth.logout();
               },
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),

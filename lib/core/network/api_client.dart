@@ -59,11 +59,24 @@ class ApiClient {
 
     // ─── Logging Interceptor (dev only) ──────────────────
     _dio.interceptors.add(
-      LogInterceptor(
-        requestBody: false,
-        responseBody: false,
-        error: true,
-        logPrint: (obj) => print('[API] $obj'),
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final url = '${options.baseUrl}${options.path}';
+          print("REQUEST URL: $url");
+          return handler.next(options);
+        },
+        onResponse: (response, handler) {
+          print("STATUS CODE: ${response.statusCode}");
+          print("BODY: ${response.data}");
+          return handler.next(response);
+        },
+        onError: (error, handler) {
+          final url = '${error.requestOptions.baseUrl}${error.requestOptions.path}';
+          print("REQUEST URL: $url");
+          print("STATUS CODE: ${error.response?.statusCode}");
+          print("BODY: ${error.response?.data}");
+          return handler.next(error);
+        },
       ),
     );
   }
@@ -181,7 +194,7 @@ class ApiException implements Exception {
           statusCode: error.response?.statusCode,
         );
       case DioExceptionType.connectionError:
-        return ApiException(message: 'Cannot reach the server. Make sure the backend is running at ${error.requestOptions.baseUrl}');
+        return ApiException(message: 'Cannot reach the server. Check your internet connection and try again.');
       default:
         return ApiException(message: 'An unexpected error occurred. Please try again.');
     }

@@ -1,39 +1,45 @@
 # ============================================================
 # SmartAttend — Backend Production Dockerfile
-# FastAPI + Uvicorn (multi-worker)
+# Python 3.12 · FastAPI · Uvicorn (multi-worker)
+# Connects to AWS RDS MySQL — no bundled database
 # ============================================================
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Set working directory
-WORKDIR /app
+# ─── Build args ──────────────────────────────────────────────
+ARG PORT=8000
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# ─── System dependencies ─────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     default-libmysqlclient-dev \
     pkg-config \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# ─── Working directory ───────────────────────────────────────
+WORKDIR /app
+
+# ─── Install Python dependencies first (for layer caching) ──
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# ─── Copy application code ───────────────────────────────────
 COPY . .
 
-# Create a non-root user for security
-RUN addgroup --system smartattend && adduser --system --group smartattend
-RUN chown -R smartattend:smartattend /app
+# ─── Create non-root user (security best practice) ──────────
+RUN addgroup --system smartattend \
+    && adduser --system --ingroup smartattend smartattend \
+    && chown -R smartattend:smartattend /app
 USER smartattend
 
-# Expose the API port
-EXPOSE 8000
+# ─── Expose API port ─────────────────────────────────────────
+EXPOSE $PORT
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# ─── Health check ────────────────────────────────────────────
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Start with Uvicorn (4 workers for production)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--log-level", "info"]
+# ─── Start server ────────────────────────────────────────────
+# 4 workers for production; Render sets $PORT automatically
+CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 4 --log-level info"]

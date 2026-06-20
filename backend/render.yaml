@@ -1,0 +1,75 @@
+# ============================================================
+# SmartAttend — Render Deployment Configuration (Production)
+# FastAPI backend → Render Web Service
+# AWS RDS MySQL → us-east-1 (Ohio region is closest to us-east-1)
+# ============================================================
+
+services:
+  - type: web
+    name: smartattend-api
+    runtime: python
+    # ── Build: install deps + run Alembic migrations on every deploy ──
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2 --log-level info
+    plan: free          # Upgrade to 'starter' for no sleep / better latency
+    region: ohio        # us-east-2 — closest Render region to AWS us-east-1 RDS
+    rootDir: backend    # Relative to repo root
+
+    # ── Health check ───────────────────────────────────────────────────
+    healthCheckPath: /health
+
+    # ── Environment Variables ──────────────────────────────────────────
+    # Set secret values in Render Dashboard → Environment → Add Secret File
+    # The ones marked sync:false MUST be set manually in the Render dashboard.
+    envVars:
+      # App
+      - key: APP_NAME
+        value: SmartAttend
+      - key: APP_ENV
+        value: production
+      - key: APP_BASE_URL
+        sync: false           # Set to your Render URL after first deploy
+      - key: ALLOWED_ORIGINS
+        sync: false           # e.g. https://smart-attendance-system-2-qthq.onrender.com,https://yourapp.com
+
+      # MySQL (AWS RDS)
+      - key: DB_HOST
+        value: smart-attendance-db.cwh6sya6karz.us-east-1.rds.amazonaws.com
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_USER
+        value: admin
+      - key: DB_NAME
+        value: smart_attendance
+      - key: DB_PASSWORD
+        sync: false           # Set in Render dashboard as secret
+
+      # JWT — Render auto-generates cryptographically random secrets
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: JWT_REFRESH_SECRET_KEY
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRE_HOURS
+        value: "24"
+      - key: JWT_REFRESH_EXPIRE_DAYS
+        value: "7"
+
+      # AWS Services
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: S3_BUCKET_NAME
+        value: smart-attendance-faces-thendral
+      - key: S3_FACE_PREFIX
+        value: faces
+      - key: AWS_REKOGNITION_COLLECTION_ID
+        value: smart-attendance-faces
+
+      # Face Recognition
+      - key: FACE_CONFIDENCE_THRESHOLD
+        value: "90.0"

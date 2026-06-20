@@ -11,7 +11,7 @@ import '../models/models.dart';
 class AdminController extends GetxController {
   static AdminController get to => Get.find();
 
-  final ApiClient _api = ApiClient();
+  ApiClient get _api => ApiClient.to;
 
   // ─── State ──────────────────────────────────────────────
   final RxInt totalStudents = 0.obs;

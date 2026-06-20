@@ -13,13 +13,12 @@ class Settings(BaseSettings):
     APP_BASE_URL: str = "http://localhost:8000"
 
     # ─── Database ──────────────────────────────────────────
-    # Set via environment variables or backend/.env file
-    # Production values → Render Dashboard → Environment
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 3306
-    DB_NAME: str = "smart_attendance"
-    DB_USER: str = "root"
-    DB_PASSWORD: str = ""   # ← NEVER hardcode here; set in .env or Render Dashboard
+
+    DB_HOST: str 
+    DB_PORT: int 
+    DB_NAME: str 
+    DB_USER: str 
+    DB_PASSWORD: str
 
     @property
     def DATABASE_URL(self) -> str:

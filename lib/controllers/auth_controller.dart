@@ -13,7 +13,7 @@ import '../models/models.dart';
 class AuthController extends GetxController {
   static AuthController get to => Get.find();
 
-  final ApiClient _api = ApiClient();
+  ApiClient get _api => ApiClient.to;
 
   // ─── State ──────────────────────────────────────────────
   final RxBool isLoading = false.obs;

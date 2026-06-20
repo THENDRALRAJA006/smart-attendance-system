@@ -18,7 +18,7 @@ import '../models/models.dart';
 class FacultyController extends GetxController {
   static FacultyController get to => Get.find();
 
-  final ApiClient _api = ApiClient();
+  ApiClient get _api => ApiClient.to;
 
   // ─── State ──────────────────────────────────────────
   final RxList<SessionModel> sessions = <SessionModel>[].obs;
@@ -367,4 +367,28 @@ class FacultyController extends GetxController {
       duration: const Duration(seconds: 3),
     );
   }
+
+  // ─── Active Sessions (for QR generator dropdown) ─────────
+  List<Map<String, dynamic>> get activeSessions => sessions
+      .where((s) => s.isActive)
+      .map((s) => {
+            'id': s.id,
+            'subject_name': s.subjectName,
+            'classroom_name': s.classroomName,
+          })
+      .toList();
+
+  // ─── Generate QR Token for a session ─────────────────────
+  Future<Map<String, dynamic>?> generateQrToken(int sessionId) async {
+    try {
+      final response = await _api.post('/faculty/generate-qr', data: {
+        'session_id': sessionId,
+      });
+      return response.data as Map<String, dynamic>?;
+    } on DioException catch (e) {
+      errorMessage.value = ApiException.fromDioError(e).message;
+      return null;
+    }
+  }
 }
+

@@ -588,3 +588,68 @@ async def create_subject(
         "department":   subject.department,
         "faculty_id":   subject.faculty_id,
     }
+
+
+# ─── POST /faculty/generate-qr ───────────────────────────────
+
+@router.post("/generate-qr")
+async def generate_qr_token(
+    request: dict,
+    current_faculty: Faculty = Depends(get_current_faculty),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate a time-limited QR token for a session.
+
+    The token is a signed JWT containing session_id, faculty_id, and expiry.
+    Students scan this QR code as a BLE fallback to mark attendance.
+    Token expires in 10 minutes.
+    """
+    import jwt
+    from datetime import datetime, timedelta
+
+    session_id = request.get("session_id")
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="session_id is required",
+        )
+
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_id,
+        SessionModel.faculty_id == current_faculty.id,
+        SessionModel.is_active == True,
+    ).first()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Active session not found or you are not the session owner",
+        )
+
+    # Build token payload
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    payload = {
+        "session_id": session_id,
+        "faculty_id": current_faculty.id,
+        "type": "qr_attendance",
+        "exp": expires_at,
+        "iat": datetime.utcnow(),
+    }
+
+    # Sign with app secret
+    secret = getattr(settings, "SECRET_KEY", "smartattend_qr_secret")
+    token = jwt.encode(payload, secret, algorithm="HS256")
+
+    logger.info(
+        f"QR token generated: faculty={current_faculty.id}, session={session_id}, "
+        f"expires={expires_at.isoformat()}"
+    )
+
+    return {
+        "token": token,
+        "session_id": session_id,
+        "expires_at": expires_at.isoformat() + "Z",
+        "valid_for_seconds": 600,
+    }
+

@@ -12,6 +12,10 @@ class StudentModel {
   final String section;
   final String email;
   final String? faceId;
+  final String? faceImageUrl;
+  final double? attendancePercentage;
+  final int? totalClasses;
+  final int? attendedClasses;
   final DateTime createdAt;
 
   StudentModel({
@@ -23,6 +27,10 @@ class StudentModel {
     required this.section,
     required this.email,
     this.faceId,
+    this.faceImageUrl,
+    this.attendancePercentage,
+    this.totalClasses,
+    this.attendedClasses,
     required this.createdAt,
   });
 
@@ -36,6 +44,10 @@ class StudentModel {
       section: json['section'],
       email: json['email'],
       faceId: json['face_id'],
+      faceImageUrl: json['face_image_url'],
+      attendancePercentage: (json['attendance_percentage'] as num?)?.toDouble(),
+      totalClasses: json['total_classes'] as int?,
+      attendedClasses: json['attended_classes'] as int?,
       createdAt: DateTime.parse(json['created_at']),
     );
   }

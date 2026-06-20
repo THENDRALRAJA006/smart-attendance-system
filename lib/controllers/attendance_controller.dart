@@ -20,7 +20,7 @@ enum AttendanceResult { none, success, failed, outOfRange, alreadyMarked }
 class AttendanceController extends GetxController {
   static AttendanceController get to => Get.find();
 
-  final ApiClient _api = ApiClient();
+  ApiClient get _api => ApiClient.to;
 
   // ─── State ──────────────────────────────────────────────
   final Rx<AttendanceStep>   step             = AttendanceStep.idle.obs;
@@ -28,6 +28,7 @@ class AttendanceController extends GetxController {
   final Rx<DetectedClassroom?> selectedClassroom = Rx<DetectedClassroom?>(null);
   final RxBool isLoading      = false.obs;
   final RxString errorMessage = ''.obs;
+  final RxString error        = ''.obs; // alias used by QR screen
   final RxString successMessage = ''.obs;
   final RxDouble confidenceScore = 0.0.obs;
   final RxInt capturedRssi = 0.obs;
@@ -201,6 +202,29 @@ class AttendanceController extends GetxController {
       }
     } catch (_) {
       // Non-critical — BLE + face still enforced
+    }
+  }
+
+  // ─── QR Attendance: Mark via scanned token ───────────────
+  /// Called by QrScannerScreen after scanning faculty-generated QR.
+  Future<bool> markAttendanceViaQr(String qrToken) async {
+    isLoading.value = true;
+    error.value = '';
+    try {
+      final response = await _api.post('/attendance/mark-qr', data: {
+        'qr_token': qrToken,
+      });
+      final data = response.data as Map<String, dynamic>;
+      return data['marked'] == true;
+    } on dio.DioException catch (e) {
+      final err = ApiException.fromDioError(e);
+      error.value = err.message;
+      return false;
+    } catch (e) {
+      error.value = e.toString();
+      return false;
+    } finally {
+      isLoading.value = false;
     }
   }
 

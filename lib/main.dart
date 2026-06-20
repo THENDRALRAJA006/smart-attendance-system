@@ -8,7 +8,9 @@ import 'core/constants/app_constants.dart';
 import 'core/network/api_client.dart';
 import 'core/services/ble_service.dart';
 import 'core/services/camera_service.dart';
+import 'core/services/connectivity_service.dart';
 import 'core/services/deep_link_service.dart';
+import 'core/services/offline_queue_service.dart';
 import 'core/services/storage_service.dart';
 import 'core/theme/app_theme.dart';
 
@@ -21,13 +23,17 @@ import 'controllers/student_controller.dart';
 import 'screens/admin/admin_dashboard.dart';
 import 'screens/auth/face_registration_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/profile_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/faculty/faculty_dashboard.dart';
+import 'screens/faculty/qr_generator_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/student/attendance_history_screen.dart';
 import 'screens/student/attendance_success_screen.dart';
 import 'screens/student/attendance_verification_screen.dart';
 import 'screens/student/classroom_detection_screen.dart';
+import 'screens/student/qr_scanner_screen.dart';
+import 'screens/student/reports_screen.dart';
 import 'screens/student/student_dashboard.dart';
 
 Future<void> main() async {
@@ -71,6 +77,11 @@ Future<void> main() async {
     permanent: true,
   );
 
+  Get.put<ConnectivityService>(
+    ConnectivityService(),
+    permanent: true,
+  );
+
   Get.put<BleService>(
     BleService(),
     permanent: true,
@@ -83,6 +94,11 @@ Future<void> main() async {
 
   Get.put<DeepLinkService>(
     DeepLinkService(),
+    permanent: true,
+  );
+
+  await Get.putAsync<OfflineQueueService>(
+    () => OfflineQueueService().init(),
     permanent: true,
   );
 
@@ -178,8 +194,24 @@ class SmartAttendApp extends StatelessWidget {
           page: () => const AttendanceHistoryScreen(),
         ),
         GetPage(
+          name: AppConstants.routeReports,
+          page: () => const ReportsScreen(),
+        ),
+        GetPage(
+          name: AppConstants.routeQrScanner,
+          page: () => const QrScannerScreen(),
+        ),
+        GetPage(
+          name: AppConstants.routeProfile,
+          page: () => const ProfileScreen(),
+        ),
+        GetPage(
           name: AppConstants.routeFacultyDashboard,
           page: () => const FacultyDashboard(),
+        ),
+        GetPage(
+          name: AppConstants.routeQrGenerator,
+          page: () => const QrGeneratorScreen(),
         ),
         GetPage(
           name: AppConstants.routeAdminDashboard,
