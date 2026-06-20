@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_faculty
 from app.core.config import settings
 from app.models.models import (
-    Faculty, Classroom, Subject, Session as SessionModel,
+    Faculty, Classroom, Subject, Session as AttendanceSession,
     Attendance, Student, FacultySubject, AttendanceLink
 )
 from app.schemas.schemas import CreateSessionRequest, AttendanceLinkResponse
@@ -36,11 +36,11 @@ async def faculty_dashboard(
 ):
     """Return faculty dashboard: sessions, classrooms, subjects."""
     sessions = (
-        db.query(SessionModel, Classroom.room_name, Subject.subject_name, Subject.subject_code)
-        .join(Classroom, SessionModel.classroom_id == Classroom.id)
-        .join(Subject, SessionModel.subject_id == Subject.id)
-        .filter(SessionModel.faculty_id == current_faculty.id)
-        .order_by(SessionModel.start_time.desc())
+        db.query(AttendanceSession, Classroom.room_name, Subject.subject_name, Subject.subject_code)
+        .join(Classroom, AttendanceSession.classroom_id == Classroom.id)
+        .join(Subject, AttendanceSession.subject_id == Subject.id)
+        .filter(AttendanceSession.faculty_id == current_faculty.id)
+        .order_by(AttendanceSession.start_time.desc())
         .limit(20)
         .all()
     )
@@ -60,16 +60,16 @@ async def faculty_dashboard(
         "department":   getattr(current_faculty, "department", None),
         "sessions": [
             {
-                "id":             s.SessionModel.id,
-                "classroom_id":   s.SessionModel.classroom_id,
+                "id":             s.AttendanceSession.id,
+                "classroom_id":   s.AttendanceSession.classroom_id,
                 "classroom_name": s.room_name,
-                "subject_id":     s.SessionModel.subject_id,
+                "subject_id":     s.AttendanceSession.subject_id,
                 "subject_name":   s.subject_name,
                 "subject_code":   s.subject_code,
                 # attendance_code intentionally omitted — internal only
-                "start_time":     s.SessionModel.start_time.isoformat(),
-                "end_time":       s.SessionModel.end_time.isoformat() if s.SessionModel.end_time else None,
-                "is_active":      s.SessionModel.is_active,
+                "start_time":     s.AttendanceSession.start_time.isoformat(),
+                "end_time":       s.AttendanceSession.end_time.isoformat() if s.AttendanceSession.end_time else None,
+                "is_active":      s.AttendanceSession.is_active,
             }
             for s in sessions
         ],
@@ -130,13 +130,13 @@ async def create_session(
         )
 
     # Deactivate any other active sessions in this classroom
-    db.query(SessionModel).filter(
-        SessionModel.classroom_id == request.classroom_id,
-        SessionModel.is_active == True,
+    db.query(AttendanceSession).filter(
+        AttendanceSession.classroom_id == request.classroom_id,
+        AttendanceSession.is_active == True,
     ).update({"is_active": False})
 
     # Create new session
-    session = SessionModel(
+    session = AttendanceSession(
         classroom_id=request.classroom_id,
         subject_id=request.subject_id,
         faculty_id=current_faculty.id,
@@ -183,9 +183,9 @@ async def end_session(
 ):
     """End an active session and deactivate its attendance link."""
     from datetime import datetime
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.faculty_id == current_faculty.id,
+    session = db.query(AttendanceSession).filter(
+        AttendanceSession.id == session_id,
+        AttendanceSession.faculty_id == current_faculty.id,
     ).first()
 
     if not session:
@@ -233,9 +233,9 @@ async def get_whatsapp_link(
     The message does NOT include the attendance code — only the deep link.
     BLE + Face Verification are the attendance methods.
     """
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.faculty_id == current_faculty.id,
+    session = db.query(AttendanceSession).filter(
+        AttendanceSession.id == session_id,
+        AttendanceSession.faculty_id == current_faculty.id,
     ).first()
 
     if not session:
@@ -304,9 +304,9 @@ async def share_link(
     Same behaviour as GET /faculty/whatsapp-link but as a POST.
     Regenerates the link and returns it.
     """
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.faculty_id == current_faculty.id,
+    session = db.query(AttendanceSession).filter(
+        AttendanceSession.id == session_id,
+        AttendanceSession.faculty_id == current_faculty.id,
     ).first()
 
     if not session:
@@ -435,10 +435,10 @@ async def live_attendance(
             SessionModel.faculty_id == current_faculty.id,
         ).first()
     else:
-        session = db.query(SessionModel).filter(
-            SessionModel.faculty_id == current_faculty.id,
-            SessionModel.is_active == True,
-        ).order_by(SessionModel.start_time.desc()).first()
+        session = db.query(AttendanceSession).filter(
+            AttendanceSession.faculty_id == current_faculty.id,
+            AttendanceSession.is_active == True,
+        ).order_by(AttendanceSession.start_time.desc()).first()
 
     if not session:
         return {
@@ -615,10 +615,10 @@ async def generate_qr_token(
             detail="session_id is required",
         )
 
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.faculty_id == current_faculty.id,
-        SessionModel.is_active == True,
+    session = db.query(AttendanceSession).filter(
+        AttendanceSession.id == session_id,
+        AttendanceSession.faculty_id == current_faculty.id,
+        AttendanceSession.is_active == True,
     ).first()
 
     if not session:
