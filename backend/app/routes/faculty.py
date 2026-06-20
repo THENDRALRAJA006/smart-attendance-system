@@ -60,18 +60,18 @@ async def faculty_dashboard(
         "department":   getattr(current_faculty, "department", None),
         "sessions": [
             {
-                "id":             s.AttendanceSession.id,
-                "classroom_id":   s.AttendanceSession.classroom_id,
-                "classroom_name": s.room_name,
-                "subject_id":     s.AttendanceSession.subject_id,
-                "subject_name":   s.subject_name,
-                "subject_code":   s.subject_code,
+                "id":             sess.id,
+                "classroom_id":   sess.classroom_id,
+                "classroom_name": room_name,
+                "subject_id":     sess.subject_id,
+                "subject_name":   subject_name,
+                "subject_code":   subject_code,
                 # attendance_code intentionally omitted — internal only
-                "start_time":     s.AttendanceSession.start_time.isoformat(),
-                "end_time":       s.AttendanceSession.end_time.isoformat() if s.AttendanceSession.end_time else None,
-                "is_active":      s.AttendanceSession.is_active,
+                "start_time":     sess.start_time.isoformat(),
+                "end_time":       sess.end_time.isoformat() if sess.end_time else None,
+                "is_active":      sess.is_active,
             }
-            for s in sessions
+            for sess, room_name, subject_name, subject_code in sessions
         ],
         "classrooms": [
             {"id": c.id, "room_name": c.room_name, "ble_uuid": c.ble_uuid}
@@ -430,9 +430,9 @@ async def live_attendance(
     most recent active session for this faculty.
     """
     if session_id:
-        session = db.query(SessionModel).filter(
-            SessionModel.id == session_id,
-            SessionModel.faculty_id == current_faculty.id,
+        session = db.query(AttendanceSession).filter(
+            AttendanceSession.id == session_id,
+            AttendanceSession.faculty_id == current_faculty.id,
         ).first()
     else:
         session = db.query(AttendanceSession).filter(
