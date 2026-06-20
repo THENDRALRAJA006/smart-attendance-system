@@ -8,6 +8,7 @@ import urllib.parse
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
+from sqlalchemy import literal_column
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -35,8 +36,22 @@ async def faculty_dashboard(
     db: Session = Depends(get_db),
 ):
     """Return faculty dashboard: sessions, classrooms, subjects."""
-    sessions = (
-        db.query(AttendanceSession, Classroom.room_name, Subject.subject_name, Subject.subject_code)
+    # ── Use explicit column labels to avoid SQLAlchemy named-tuple
+    # attribute collision between the alias (AttendanceSession) and the
+    # original model class name (Session).  Unpack by position instead.
+    rows = (
+        db.query(
+            AttendanceSession.id.label("session_id"),
+            AttendanceSession.classroom_id.label("classroom_id"),
+            AttendanceSession.subject_id.label("subject_id"),
+            AttendanceSession.attendance_code.label("attendance_code"),
+            AttendanceSession.start_time.label("start_time"),
+            AttendanceSession.end_time.label("end_time"),
+            AttendanceSession.is_active.label("is_active"),
+            Classroom.room_name.label("room_name"),
+            Subject.subject_name.label("subject_name"),
+            Subject.subject_code.label("subject_code"),
+        )
         .join(Classroom, AttendanceSession.classroom_id == Classroom.id)
         .join(Subject, AttendanceSession.subject_id == Subject.id)
         .filter(AttendanceSession.faculty_id == current_faculty.id)
@@ -55,23 +70,28 @@ async def faculty_dashboard(
         .all()
     )
 
+    logger.info(
+        f"Dashboard: faculty={current_faculty.id}, sessions={len(rows)}, "
+        f"classrooms={len(classrooms)}, subjects={len(subjects)}"
+    )
+
     return {
         "faculty_name": current_faculty.name,
         "department":   getattr(current_faculty, "department", None),
         "sessions": [
             {
-                "id":             s.AttendanceSession.id,
-                "classroom_id":   s.AttendanceSession.classroom_id,
-                "classroom_name": s.room_name,
-                "subject_id":     s.AttendanceSession.subject_id,
-                "subject_name":   s.subject_name,
-                "subject_code":   s.subject_code,
-                # attendance_code intentionally omitted — internal only
-                "start_time":     s.AttendanceSession.start_time.isoformat(),
-                "end_time":       s.AttendanceSession.end_time.isoformat() if s.AttendanceSession.end_time else None,
-                "is_active":      s.AttendanceSession.is_active,
+                "id":             r.session_id,
+                "classroom_id":   r.classroom_id,
+                "classroom_name": r.room_name,
+                "subject_id":     r.subject_id,
+                "subject_name":   r.subject_name,
+                "subject_code":   r.subject_code,
+                "attendance_code": r.attendance_code,  # needed by Flutter SessionModel
+                "start_time":     r.start_time.isoformat(),
+                "end_time":       r.end_time.isoformat() if r.end_time else None,
+                "is_active":      r.is_active,
             }
-            for s in sessions
+            for r in rows
         ],
         "classrooms": [
             {"id": c.id, "room_name": c.room_name, "ble_uuid": c.ble_uuid}
@@ -157,19 +177,26 @@ async def create_session(
         base_url=settings.APP_BASE_URL,
     )
 
+    logger.info(
+        f"Session created: id={session.id}, faculty={current_faculty.id}, "
+        f"classroom={classroom.room_name}, subject={subject.subject_name}"
+    )
+
     return {
-        "id":             session.id,
-        "classroom_id":   session.classroom_id,
-        "classroom_name": classroom.room_name,
-        "subject_id":     session.subject_id,
-        "subject_name":   subject.subject_name,
-        "start_time":     session.start_time.isoformat(),
-        "end_time":       None,
-        "is_active":      True,
-        # Link info — NO attendance code
-        "deep_link":      link.deep_link,
-        "web_link":       link.web_link,
-        "whatsapp_url":   link.whatsapp_url,
+        "id":              session.id,
+        "classroom_id":    session.classroom_id,
+        "classroom_name":  classroom.room_name,
+        "subject_id":      session.subject_id,
+        "subject_name":    subject.subject_name,
+        "subject_code":    subject.subject_code,
+        "attendance_code": session.attendance_code,  # needed by Flutter SessionModel
+        "start_time":      session.start_time.isoformat(),
+        "end_time":        None,
+        "is_active":       True,
+        # Link info
+        "deep_link":       link.deep_link,
+        "web_link":        link.web_link,
+        "whatsapp_url":    link.whatsapp_url,
     }
 
 
