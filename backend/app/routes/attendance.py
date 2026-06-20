@@ -177,7 +177,7 @@ async def mark_student_attendance(
         "classroom_name": classroom.room_name if classroom else "",
         "faculty_name": faculty.name if faculty else "",
         "date": record.date.isoformat(),
-        "time": record.time,
+        "time": str(record.time) if record.time else None,
         "status": record.status,
     }
 
@@ -311,7 +311,7 @@ async def mark_attendance_via_qr(
         "classroom_name": classroom.room_name if classroom else "",
         "faculty_name": faculty.name if faculty else "",
         "date": record.date.isoformat(),
-        "time": record.time,
+        "time": str(record.time) if record.time else None,
         "method": "qr",
     }
 

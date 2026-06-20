@@ -100,7 +100,7 @@ async def student_dashboard(
             "subject_id":     r.Attendance.subject_id,
             "subject_name":   r.subject_name,
             "date":           r.Attendance.date.isoformat(),
-            "time":           r.Attendance.time,
+            "time":           str(r.Attendance.time) if r.Attendance.time else None,
             "status":         r.Attendance.status,
             "rssi":           r.Attendance.rssi,
         }
@@ -155,7 +155,7 @@ async def attendance_history(
             "subject_id":      r.Attendance.subject_id,
             "subject_name":    r.subject_name,
             "date":            r.Attendance.date.isoformat(),
-            "time":            r.Attendance.time,
+            "time":            str(r.Attendance.time) if r.Attendance.time else None,
             "status":          r.Attendance.status,
             "rssi":            r.Attendance.rssi,
             "face_confidence": r.Attendance.face_confidence,
@@ -300,6 +300,6 @@ async def mark_student_attendance(
         "confidence":    face_result["confidence"],
         "message":       "Attendance marked successfully ✅",
         "attendance_id": record.id,
-        "time":          record.time,
+        "time":          str(record.time) if record.time else None,
         "date":          record.date.isoformat(),
     }

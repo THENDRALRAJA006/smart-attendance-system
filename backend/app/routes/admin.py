@@ -90,7 +90,7 @@ async def list_students(
             "section": s.section,
             "email": s.email,
             "face_id": s.face_id,
-            "created_at": s.created_at.isoformat(),
+            "created_at": s.created_at.isoformat() if s.created_at else None,
         }
         for s in students
     ]
@@ -114,7 +114,7 @@ async def get_student_by_id(
         "section": student.section,
         "email": student.email,
         "face_id": student.face_id,
-        "created_at": student.created_at.isoformat(),
+        "created_at": student.created_at.isoformat() if student.created_at else None,
     }
 
 
@@ -464,9 +464,7 @@ async def admin_export_report(
     )
 
     if department:
-        query = query.join(
-            Student, Attendance.student_id == Student.id, isouter=True
-        ).filter(Student.department == department)
+        query = query.filter(Student.department == department)
 
     rows = query.order_by(Attendance.date.desc()).all()
 
@@ -483,7 +481,7 @@ async def admin_export_report(
             "subject": subj.subject_name if subj else "N/A",
             "classroom": room.room_name if room else "N/A",
             "date": r.Attendance.date.isoformat(),
-            "time": r.Attendance.time,
+            "time": str(r.Attendance.time) if r.Attendance.time else None,
             "status": r.Attendance.status,
             "rssi": r.Attendance.rssi,
             "face_confidence": r.Attendance.face_confidence,
