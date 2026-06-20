@@ -177,7 +177,7 @@ async def mark_student_attendance(
         "classroom_name": classroom.room_name if classroom else "",
         "faculty_name": faculty.name if faculty else "",
         "date": record.date.isoformat(),
-        "time": str(record.time) if record.time else None,
+        "time": record.time,
         "status": record.status,
     }
 
@@ -241,9 +241,8 @@ async def mark_attendance_via_qr(
         )
 
     # 1. Decode and verify the JWT
-    secret = getattr(settings, "SECRET_KEY", "smartattend_qr_secret")
     try:
-        payload = jwt.decode(qr_token, secret, algorithms=["HS256"])
+        payload = jwt.decode(qr_token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -311,7 +310,7 @@ async def mark_attendance_via_qr(
         "classroom_name": classroom.room_name if classroom else "",
         "faculty_name": faculty.name if faculty else "",
         "date": record.date.isoformat(),
-        "time": str(record.time) if record.time else None,
+        "time": record.time,
         "method": "qr",
     }
 
