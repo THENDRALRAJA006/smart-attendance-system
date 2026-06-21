@@ -1,12 +1,16 @@
 # ============================================================
-# SmartAttend — Auth Routes (v3)
+# SmartAttend — Auth Routes (v4)
 # POST /auth/register, /auth/login, /auth/refresh
-# POST /auth/face-register, /auth/face-verify
+# POST /auth/face-register, /auth/face-verify        (legacy)
+# POST /auth/face-register-multi                      (v4: 15-pose)
+# GET  /auth/liveness-challenge                       (v4: anti-spoof)
+# POST /auth/liveness-verify                          (v4: anti-spoof)
 # GET  /auth/me
 # ============================================================
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -15,16 +19,18 @@ from app.core.security import (
     create_access_token, create_refresh_token, decode_refresh_token
 )
 from app.core.dependencies import get_current_student, get_current_user_any_role
-from app.models.models import Student, Faculty, Admin, FacultySubject, Subject
+from app.models.models import Student, Faculty, Admin, FacultySubject, Subject, StudentFace, FaceProfile
 from app.schemas.schemas import (
     StudentRegisterRequest, LoginRequest, TokenResponse,
     TokenRefreshResponse, RefreshTokenRequest, StudentResponse
 )
 from app.services.rekognition_service import rekognition_service
 from app.services.s3_service import s3_service
+from app.services.liveness_service import liveness_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
 
 
 # ─── Helper: Build token payload ─────────────────────────────
@@ -414,3 +420,207 @@ async def get_current_user_profile(
         }
 
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+# ============================================================
+# v4 ENDPOINTS: 15-Pose Registration + Liveness Anti-Spoofing
+# ============================================================
+
+POSE_SEQUENCE = [
+    (1,  "front_face",   "Look directly at the camera"),
+    (2,  "left_15",      "Turn your head slightly LEFT (15 degrees)"),
+    (3,  "left_30",      "Turn your head LEFT (30 degrees)"),
+    (4,  "right_15",     "Turn your head slightly RIGHT (15 degrees)"),
+    (5,  "right_30",     "Turn your head RIGHT (30 degrees)"),
+    (6,  "look_up",      "Tilt your head UP"),
+    (7,  "look_down",    "Tilt your head DOWN"),
+    (8,  "smile",        "Smile naturally"),
+    (9,  "blink",        "Blink once"),
+    (10, "neutral",      "Return to neutral expression"),
+    (11, "slight_left",  "Slight LEFT turn"),
+    (12, "slight_right", "Slight RIGHT turn"),
+    (13, "front_face_2", "Look at camera again"),
+    (14, "smile_2",      "Smile again"),
+    (15, "final_front",  "Final front-facing photo"),
+]
+POSE_MAP = {idx: (ptype, instr) for idx, ptype, instr in POSE_SEQUENCE}
+
+
+@router.post("/face-register-multi", tags=["Authentication"])
+async def register_face_pose(
+    file: UploadFile = File(...),
+    pose_index: int = Form(...),
+    current_student: Student = Depends(get_current_student),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload one pose in the 15-step guided face registration. Call once per pose (1-15).
+
+    Flow:
+    1. Quality-check frame (brightness, sharpness, single face)
+    2. Upload to S3 at students/{student_id}/face_{pose_index:02d}.jpg
+    3. Index in Rekognition for primary poses (1,2,4,13,15)
+    4. Upsert row in student_faces table
+    5. On pose 15: promote best face_id to students + face_profiles
+    """
+    if not 1 <= pose_index <= 15:
+        raise HTTPException(status_code=400, detail="pose_index must be 1-15")
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty image file")
+
+    pose_type, _ = POSE_MAP.get(pose_index, ("unknown", ""))
+
+    # Quality gate — rejects blur, dark images, multiple faces
+    quality = liveness_service.check_registration_frame_quality(image_bytes)
+    if not quality["valid"]:
+        return {
+            "success": False, "pose_index": pose_index, "pose_type": pose_type,
+            "message": quality["reason"], "quality": quality,
+        }
+
+    # Upload to S3
+    s3_key, s3_url = s3_service.upload_face_image_pose(
+        image_bytes, current_student.id, pose_index
+    )
+
+    # Index in Rekognition (primary poses only)
+    rek_result = rekognition_service.register_face_pose(
+        image_bytes, current_student.id, pose_index, pose_type
+    )
+    face_id    = rek_result.get("face_id")
+    confidence = rek_result.get("confidence")
+    is_primary = rek_result.get("is_primary", False)
+
+    # Upsert student_faces
+    existing = db.query(StudentFace).filter_by(
+        student_id=current_student.id, pose_index=pose_index
+    ).first()
+    if existing:
+        existing.face_id = face_id
+        existing.image_url = s3_url
+        existing.s3_key = s3_key
+        existing.pose_type = pose_type
+        existing.confidence = confidence
+        existing.is_primary = is_primary
+    else:
+        db.add(StudentFace(
+            student_id=current_student.id, face_id=face_id, image_url=s3_url,
+            s3_key=s3_key, pose_index=pose_index, pose_type=pose_type,
+            confidence=confidence, is_primary=is_primary,
+        ))
+
+    # Final pose: promote best primary face_id to students + face_profiles
+    if pose_index == 15:
+        best = (
+            db.query(StudentFace)
+            .filter(
+                StudentFace.student_id == current_student.id,
+                StudentFace.is_primary == True,
+                StudentFace.face_id.isnot(None),
+            )
+            .order_by(StudentFace.confidence.desc())
+            .first()
+        )
+        if best:
+            current_student.face_id = best.face_id
+            current_student.face_image_url = best.image_url
+            profile = db.query(FaceProfile).filter_by(
+                student_id=current_student.id
+            ).first()
+            if profile:
+                profile.face_id = best.face_id
+                profile.s3_key  = best.s3_key
+                profile.s3_url  = best.image_url
+                profile.confidence = best.confidence
+            else:
+                db.add(FaceProfile(
+                    student_id=current_student.id,
+                    face_id=best.face_id, s3_key=best.s3_key,
+                    s3_url=best.image_url, confidence=best.confidence,
+                ))
+
+    db.commit()
+
+    next_pose = None
+    if pose_index < 15:
+        ni, nt, nins = POSE_SEQUENCE[pose_index]
+        next_pose = {"pose_index": ni, "pose_type": nt, "instruction": nins}
+
+    logger.info(
+        f"Pose {pose_index}/{pose_type} registered: "
+        f"student={current_student.id}, indexed={rek_result.get('indexed')}, face_id={face_id}"
+    )
+
+    return {
+        "success": True,
+        "pose_index": pose_index,
+        "pose_type": pose_type,
+        "s3_url": s3_url,
+        "face_id": face_id,
+        "confidence": confidence,
+        "indexed_in_rekognition": rek_result.get("indexed", False),
+        "is_final": pose_index == 15,
+        "next_pose": next_pose,
+        "message": (
+            f"Pose {pose_index}/15 captured!"
+            if pose_index < 15
+            else "All 15 poses registered! Face ID active."
+        ),
+        "quality": quality,
+    }
+
+
+# ─── GET /auth/liveness-challenge ────────────────────────────
+@router.get("/liveness-challenge", tags=["Authentication"])
+async def get_liveness_challenge(
+    current_student: Student = Depends(get_current_student),
+):
+    """Issue a random liveness challenge (BLINK/SMILE/TURN_LEFT/TURN_RIGHT). Token expires in 90s."""
+    return liveness_service.generate_challenge(current_student.id)
+
+
+# ─── POST /auth/liveness-verify ──────────────────────────────
+@router.post("/liveness-verify", tags=["Authentication"])
+async def verify_liveness(
+    files: List[UploadFile] = File(...),
+    challenge_token: str = Form(...),
+    current_student: Student = Depends(get_current_student),
+):
+    """
+    Verify liveness using 1-3 frames captured during the challenge.
+
+    Anti-spoofing:
+    - Brightness > 40 (rejects dark / printed photos)
+    - Sharpness > 40 (rejects blurry / printed images)
+    - Single face only
+    - BLINK: eyes closed in at least 1 frame
+    - SMILE: smile confidence > 70 percent in at least 1 frame
+    - TURN_LEFT/RIGHT: head yaw > 15 degrees in at least 1 frame
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail="At least 1 frame required")
+    if len(files) > 3:
+        raise HTTPException(status_code=400, detail="Maximum 3 frames")
+
+    frames: list[bytes] = []
+    for f in files:
+        if not f.content_type or not f.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="All files must be images")
+        data = await f.read()
+        if data:
+            frames.append(data)
+
+    if not frames:
+        raise HTTPException(status_code=400, detail="All submitted files are empty")
+
+    result = liveness_service.verify_liveness(
+        frames=frames, challenge_token=challenge_token
+    )
+    logger.info(
+        f"Liveness verify: student={current_student.id}, "
+        f"passed={result['passed']}, challenge={result['challenge_type']}"
+    )
+    return result

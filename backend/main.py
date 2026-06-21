@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 
 from app.core.config import settings
 from app.core.database import init_db
@@ -21,6 +22,19 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+# ─── Unique OpenAPI Operation ID Generator ─────────────────────────
+# Builds operation_id as "{tag}_{function_name}" for every route
+# that does NOT already have an explicit operation_id set.
+# Falls back to explicit operation_id when present.
+def _generate_unique_id(route: APIRoute) -> str:
+    if route.operation_id:
+        return route.operation_id
+    tag = route.tags[0] if route.tags else "default"
+    # Normalize: lowercase, spaces → underscores
+    tag_slug = tag.lower().replace(" ", "_")
+    return f"{tag_slug}_{route.name}"
 
 
 # ─── Startup / Shutdown ──────────────────────────────────────
@@ -54,7 +68,8 @@ app = FastAPI(
     
     A secure, multi-factor attendance system using:
     - **BLE** (ESP32 beacons) for proximity verification
-    - **AWS Rekognition** for face verification
+    - **AWS Rekognition** for face verification (15-pose registration, confidence tiers)
+    - **Anti-spoofing liveness** (BLINK / SMILE / TURN_LEFT / TURN_RIGHT challenges)
     - **JWT** for authentication
     
     ### Roles
@@ -62,10 +77,11 @@ app = FastAPI(
     - **Faculty**: Create sessions, generate codes, view reports
     - **Admin**: System management, analytics
     """,
-    version="1.0.0",
+    version="4.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
+    generate_unique_id_function=_generate_unique_id,
 )
 
 

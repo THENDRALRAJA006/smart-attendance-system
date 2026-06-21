@@ -189,7 +189,6 @@ async def create_session(
         "subject_id":      session.subject_id,
         "subject_name":    subject.subject_name,
         "subject_code":    subject.subject_code,
-        "attendance_code": session.attendance_code,  # needed by Flutter SessionModel
         "start_time":      session.start_time.isoformat(),
         "end_time":        None,
         "is_active":       True,

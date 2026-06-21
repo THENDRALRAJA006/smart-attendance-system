@@ -1,5 +1,6 @@
 # ============================================================
-# SmartAttend — SQLAlchemy ORM Models (v3)
+# SmartAttend — SQLAlchemy ORM Models (v4)
+# Added: StudentFace (15-pose), liveness_verified, confidence_tier
 # ============================================================
 
 from datetime import datetime
@@ -34,6 +35,7 @@ class Student(Base):
     # Relationships
     attendances   = relationship("Attendance", back_populates="student")
     face_profile  = relationship("FaceProfile", back_populates="student", uselist=False)
+    student_faces = relationship("StudentFace", back_populates="student")
 
 
 class Faculty(Base):
@@ -119,6 +121,35 @@ class FaceProfile(Base):
 
     # Relationships
     student = relationship("Student", back_populates="face_profile")
+
+
+class StudentFace(Base):
+    """
+    Stores all 15 guided-pose face images per student.
+    Each row = one pose photo, one Rekognition FaceId, one S3 object.
+
+    Folder structure: students/{student_id}/face_{pose_index:02d}.jpg
+    is_primary=True on the best poses indexed into Rekognition (3-5 max).
+    """
+    __tablename__ = "student_faces"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    student_id        = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    face_id           = Column(String(255), nullable=True)   # AWS Rekognition FaceId (null if not indexed)
+    image_url         = Column(String(500), nullable=False)  # S3 URL
+    s3_key            = Column(String(500), nullable=False)  # S3 key
+    pose_index        = Column(Integer, nullable=False)       # 1-15
+    pose_type         = Column(String(50), nullable=False)    # front_face, left_15, etc.
+    confidence        = Column(Float, nullable=True)          # Rekognition indexing confidence
+    is_primary        = Column(Boolean, default=False)        # True = indexed in Rekognition
+    registration_date = Column(DateTime, default=func.now())
+
+    # Relationships
+    student = relationship("Student", back_populates="student_faces")
+
+    __table_args__ = (
+        Index("uq_student_pose", "student_id", "pose_index", unique=True),
+    )
 
 
 class Subject(Base):
@@ -229,17 +260,21 @@ class Attendance(Base):
     """Individual attendance record for a student in a session."""
     __tablename__ = "attendance"
 
-    id             = Column(Integer, primary_key=True, index=True)
-    student_id     = Column(Integer, ForeignKey("students.id"), nullable=False)
-    classroom_id   = Column(Integer, ForeignKey("classrooms.id"), nullable=False)
-    subject_id     = Column(Integer, ForeignKey("subjects.id"), nullable=False)
-    session_id     = Column(Integer, ForeignKey("sessions.id"), nullable=True)
-    date           = Column(Date, nullable=False)
-    time           = Column(String(10), nullable=False)  # HH:MM format
-    status         = Column(String(10), default="present")  # present | absent | late
-    rssi           = Column(Integer, nullable=True)
-    face_confidence = Column(Float, nullable=True)
-    marked_at      = Column(DateTime, default=func.now())
+    id               = Column(Integer, primary_key=True, index=True)
+    student_id       = Column(Integer, ForeignKey("students.id"), nullable=False)
+    classroom_id     = Column(Integer, ForeignKey("classrooms.id"), nullable=False)
+    subject_id       = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    session_id       = Column(Integer, ForeignKey("sessions.id"), nullable=True)
+    date             = Column(Date, nullable=False)
+    time             = Column(String(10), nullable=False)   # HH:MM format
+    status           = Column(String(15), default="present")  # present | absent | manual_review | rejected
+    rssi             = Column(Integer, nullable=True)
+    face_confidence  = Column(Float, nullable=True)
+    # ── v4: anti-spoofing + liveness ──────────────────────────
+    liveness_verified   = Column(Boolean, default=False)         # Passed blink/smile/movement challenge
+    confidence_tier     = Column(String(15), nullable=True)      # present | manual_review | rejected
+    attendance_method   = Column(String(20), default="ble_face") # ble_face | qr
+    marked_at           = Column(DateTime, default=func.now())
 
     # Relationships
     student   = relationship("Student", back_populates="attendances")

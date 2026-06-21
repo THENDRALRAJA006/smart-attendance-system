@@ -10,7 +10,7 @@ from datetime import date, datetime
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
-from app.models.models import Attendance, Session as SessionModel, Classroom, Student, AttendanceLink
+from app.models.models import Attendance, Session as SessionModel, Classroom, Student, AttendanceLink, BleBeacon
 
 logger = logging.getLogger(__name__)
 
@@ -78,17 +78,36 @@ def get_session_by_id(db: Session, session_id: int) -> SessionModel:
         HTTPException 404: Session not found
         HTTPException 409: Session no longer active
     """
+    logger.info(f"[SESSION] Looking up session_id={session_id}")
+
     session = db.query(SessionModel).filter(
         SessionModel.id == session_id
     ).first()
 
     if not session:
+        logger.warning(
+            f"[SESSION] NOT FOUND: session_id={session_id} — "
+            f"no row in sessions table"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Attendance session not found. The link may be invalid.",
         )
 
+    logger.info(
+        f"[SESSION] Found: session_id={session_id}, "
+        f"classroom_id={session.classroom_id}, "
+        f"subject_id={session.subject_id}, "
+        f"faculty_id={session.faculty_id}, "
+        f"is_active={session.is_active}, "
+        f"start_time={session.start_time}"
+    )
+
     if not session.is_active:
+        logger.warning(
+            f"[SESSION] INACTIVE: session_id={session_id}, "
+            f"end_time={session.end_time}"
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This attendance session has ended. Contact your faculty.",
@@ -126,23 +145,60 @@ def check_duplicate_attendance(
 
 # ─── RSSI Validation ─────────────────────────────────────────
 
-def validate_rssi(rssi: int, threshold: int = RSSI_THRESHOLD) -> None:
+def validate_rssi(
+    rssi: int,
+    threshold: int = RSSI_THRESHOLD,
+    classroom_id: int | None = None,
+    db: Session | None = None,
+) -> None:
     """
     Validate BLE signal strength.
 
     Args:
         rssi: Received signal strength (dBm)
-        threshold: Minimum acceptable RSSI (default -70 dBm)
+        threshold: Fallback minimum RSSI (default -70 dBm)
+        classroom_id: If provided + db given, loads per-beacon threshold from DB
+        db: SQLAlchemy session — required for per-beacon threshold lookup
 
     Raises:
         HTTPException 403: Out of range
     """
-    if rssi < threshold:
+    # Load per-classroom threshold from BleBeacon table if available
+    effective_threshold = threshold
+    if classroom_id and db:
+        beacon = db.query(BleBeacon).filter(
+            BleBeacon.classroom_id == classroom_id,
+            BleBeacon.is_active == True,
+        ).first()
+        if beacon:
+            effective_threshold = beacon.rssi_threshold
+            logger.debug(
+                f"[BLE] Per-beacon threshold for classroom_id={classroom_id}: "
+                f"{effective_threshold} dBm"
+            )
+        else:
+            logger.debug(
+                f"[BLE] No beacon config for classroom_id={classroom_id}, "
+                f"using global threshold {effective_threshold} dBm"
+            )
+
+    if rssi < effective_threshold:
+        logger.warning(
+            f"[BLE] OUT OF RANGE: rssi={rssi} dBm < threshold={effective_threshold} dBm, "
+            f"classroom_id={classroom_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Out of classroom range (RSSI {rssi} dBm < threshold {threshold} dBm). "
-                   "Please move closer to the classroom.",
+            detail=(
+                f"Out of classroom range (RSSI {rssi} dBm < threshold {effective_threshold} dBm). "
+                "Please move closer to the classroom."
+            ),
         )
+
+    logger.info(
+        f"[BLE] IN RANGE: rssi={rssi} dBm >= threshold={effective_threshold} dBm, "
+        f"classroom_id={classroom_id}"
+    )
 
 
 # ─── Student Eligibility ─────────────────────────────────────
@@ -167,7 +223,21 @@ def validate_student_eligibility(
 
     if subject and subject.department:
         # Only enforce if the subject has a department set
-        if student.department.strip().lower() != subject.department.strip().lower():
+        student_dept  = student.department.strip().lower()
+        subject_dept  = subject.department.strip().lower()
+
+        logger.info(
+            f"[ELIGIBILITY] student_id={student.id} ({student.name}), "
+            f"student_dept='{student.department}', "
+            f"subject_dept='{subject.department}', "
+            f"session_id={session.id}"
+        )
+
+        if student_dept != subject_dept:
+            logger.warning(
+                f"[ELIGIBILITY] REJECTED: student_id={student.id} dept='{student.department}' "
+                f"!= subject dept='{subject.department}' for session_id={session.id}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
@@ -176,6 +246,15 @@ def validate_student_eligibility(
                     f"but your department is '{student.department}'."
                 ),
             )
+
+        logger.info(
+            f"[ELIGIBILITY] APPROVED: student_id={student.id} matches dept='{subject.department}'"
+        )
+    else:
+        logger.info(
+            f"[ELIGIBILITY] No department restriction on subject_id={session.subject_id}, "
+            f"student_id={student.id} approved"
+        )
 
 
 # ─── Mark Attendance ─────────────────────────────────────────
@@ -186,9 +265,17 @@ def mark_attendance(
     session: SessionModel,
     rssi: int,
     face_confidence: float,
+    liveness_verified: bool = False,
+    confidence_tier: str = "present",
+    attendance_method: str = "ble_face",
 ) -> Attendance:
     """
     Create an attendance record after all validations pass.
+
+    v4 args:
+        liveness_verified: True if student passed blink/smile/movement challenge
+        confidence_tier: 'present' | 'manual_review' | 'rejected'
+        attendance_method: 'ble_face' | 'qr'
 
     Returns:
         Created Attendance object
@@ -202,9 +289,12 @@ def mark_attendance(
         session_id=session.id,
         date=now.date(),
         time=now.strftime("%H:%M"),
-        status="present",
+        status=confidence_tier,           # v4: status reflects tier
         rssi=rssi,
         face_confidence=face_confidence,
+        liveness_verified=liveness_verified,
+        confidence_tier=confidence_tier,
+        attendance_method=attendance_method,
     )
 
     db.add(record)
@@ -213,7 +303,8 @@ def mark_attendance(
 
     logger.info(
         f"Attendance marked: student={student_id}, "
-        f"session={session.id}, confidence={face_confidence:.1f}%"
+        f"session={session.id}, confidence={face_confidence:.1f}%, "
+        f"tier={confidence_tier}, liveness={liveness_verified}"
     )
     return record
 

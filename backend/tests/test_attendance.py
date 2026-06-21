@@ -65,6 +65,51 @@ class TestSessionManagement:
         assert data["attendance_count"] == 0
         assert data["students"] == []
 
+    def test_get_active_session(self, client, student_headers, db, faculty_headers):
+        """Get currently active session for a classroom."""
+        from app.models.models import Classroom
+        
+        # 1. Create a separate classroom
+        temp_classroom = Classroom(
+            room_name="CLASSROOM_TEMP_TEST",
+            ble_uuid="SMART_ATTEND_TEMP_TEST"
+        )
+        db.add(temp_classroom)
+        db.commit()
+        db.refresh(temp_classroom)
+
+        # 2. Start a session
+        with patch("app.services.rekognition_service.rekognition_service"):
+            client.post(
+                "/faculty/subjects",
+                json={
+                    "subject_name": "Data Structures",
+                    "subject_code": "CS301",
+                    "department": "Computer Science",
+                },
+                headers=faculty_headers,
+            )
+            client.post(
+                "/faculty/create-session",
+                json={
+                    "classroom_id": temp_classroom.id,
+                    "subject_id": 1,
+                    "attendance_code": "123456",
+                },
+                headers=faculty_headers,
+            )
+
+        # 3. Query active session via student
+        response = client.get(
+            f"/attendance/active-session?classroom_uuid={temp_classroom.ble_uuid}",
+            headers=student_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["classroom_uuid"] == temp_classroom.ble_uuid
+        assert data["session_id"] is not None
+        assert data["is_active"] is True
+
 
 class TestMarkAttendance:
     """Student: mark attendance with BLE + face verification."""
