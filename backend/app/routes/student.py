@@ -103,11 +103,30 @@ async def student_dashboard(
     ]
 
     return {
-        "total_classes":         total,
-        "attended_classes":      attended,
-        "attendance_percentage": round(percentage, 2),
-        "subject_wise":          subject_wise,
-        "recent_history":        recent_history,
+        # Student Info
+    "student_id": current_student.id,
+    "student_name": current_student.name,
+    "reg_no": current_student.reg_no,
+    "department": current_student.department,
+    "year": current_student.year,
+    "section": current_student.section,
+    "email": current_student.email,
+
+    # Face Registration Status
+    "face_registered": current_student.face_id is not None,
+    "face_id": current_student.face_id,
+    "face_image_url": current_student.face_image_url,
+
+    # Attendance Summary
+    "total_classes": total,
+    "attended_classes": attended,
+    "attendance_percentage": round(percentage, 2),
+
+    # Analytics
+    "subject_wise": subject_wise,
+
+    # Recent Activity
+    "recent_history": recent_history,
     }
 
 

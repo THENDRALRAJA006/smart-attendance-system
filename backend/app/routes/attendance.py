@@ -213,13 +213,12 @@ async def mark_student_attendance(
             liveness_service.decode_challenge_token(liveness_token)
             liveness_verified = True
             logger.info(
-                f"[MARK] Liveness verified: student_id={current_student.id}"
+                f"[LIVENESS_RESULT] Liveness verified successfully for student_id={current_student.id}"
             )
         except Exception as e:
             liveness_verified = False
             logger.warning(
-                f"[MARK] Liveness token invalid: student_id={current_student.id}, "
-                f"error={e}"
+                f"[LIVENESS_RESULT] Liveness token invalid for student_id={current_student.id}, error={e}"
             )
 
     # 8. Mark attendance with tier + liveness info
@@ -309,7 +308,7 @@ async def get_active_session(
     Used as a fallback when the student opens the app directly without a deep link.
     """
     logger.info(
-        f"[ACTIVE_SESSION] Query by student_id={current_student.id}: "
+        f"[ACTIVE_SESSION_LOOKUP] Query by student_id={current_student.id}: "
         f"classroom_uuid={classroom_uuid}, classroom_name={classroom_name}"
     )
 

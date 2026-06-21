@@ -62,7 +62,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String Function(T) itemLabel,
   }) {
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
       dropdownColor: AppTheme.bgCard,
       style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
       decoration: InputDecoration(
@@ -71,11 +71,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         fillColor: AppTheme.bgCardLight,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.2)),
+          borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.2)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: AppTheme.primary.withOpacity(0.2)),
+          borderSide: BorderSide(color: AppTheme.primary.withValues(alpha: 0.2)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -275,9 +275,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       margin: const EdgeInsets.only(bottom: 16),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppTheme.error.withOpacity(0.1),
+                        color: AppTheme.error.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+                        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         _auth.errorMessage.value,
@@ -365,7 +365,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             border: Border.all(
               color: isActive
                   ? Colors.transparent
-                  : AppTheme.primary.withOpacity(0.3),
+                  : AppTheme.primary.withValues(alpha: 0.3),
             ),
           ),
           child: Center(
@@ -397,8 +397,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         height: 1,
         margin: const EdgeInsets.only(bottom: 16),
         color: isActive
-            ? AppTheme.primary.withOpacity(0.5)
-            : AppTheme.primary.withOpacity(0.15),
+            ? AppTheme.primary.withValues(alpha: 0.5)
+            : AppTheme.primary.withValues(alpha: 0.15),
       ),
     );
   }

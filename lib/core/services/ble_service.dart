@@ -4,6 +4,7 @@
 // ============================================================
 
 import 'dart:async';
+import 'dart:developer' as dev;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import '../constants/app_constants.dart';
@@ -54,6 +55,12 @@ class BleService extends GetxService {
         for (final result in results) {
           final name = result.device.platformName;
           if (name.isNotEmpty && _isSmartAttendBeacon(name)) {
+            dev.log(
+              '[BLE_DETECTION] SmartAttend beacon detected: name=$name, '
+              'remoteId=${result.device.remoteId.str}, rssi=${result.rssi} dBm, '
+              'serviceUuids=${result.advertisementData.serviceUuids}',
+              name: 'BleService',
+            );
             final classroom = DetectedClassroom(
               name: name,
               rssi: result.rssi,
@@ -76,7 +83,19 @@ class BleService extends GetxService {
       // Auto-stop after scan duration
       Future.delayed(
         Duration(seconds: AppConstants.bleScanDuration),
-        () => stopScan(),
+        () {
+          stopScan();
+          dev.log(
+            '[BLE_DETECTION] Scan finished. Total detected classrooms: ${detectedClassrooms.length}',
+            name: 'BleService',
+          );
+          for (final c in detectedClassrooms) {
+            dev.log(
+              '  - Classroom: name=${c.name}, deviceId/remoteId=${c.deviceId}, rssi=${c.rssi} dBm, isInRange=${c.isInRange}',
+              name: 'BleService',
+            );
+          }
+        },
       );
     } catch (e) {
       isScanning.value = false;
@@ -94,9 +113,14 @@ class BleService extends GetxService {
 
   // ─── Check if it's our beacon ───────────────────────────
   bool _isSmartAttendBeacon(String name) {
-    return name.startsWith('CLASSROOM_') ||
-        name.startsWith('LAB_') ||
-        name.startsWith('SMART_ATTEND');
+    // Case-insensitive check — supports any ESP32 naming convention:
+    //   CLASSROOM_A101, Lab_CS01, SMART_ATTEND_B201, SmartAttend_Hall1, etc.
+    final upperName = name.toUpperCase();
+    return upperName.startsWith('CLASSROOM_') ||
+        upperName.startsWith('LAB_') ||
+        upperName.startsWith('SMART_ATTEND') ||
+        upperName.startsWith('SMARTATTEND') ||
+        upperName.startsWith('SA_');
   }
 
   // ─── Get best classroom (strongest in-range signal) ─────

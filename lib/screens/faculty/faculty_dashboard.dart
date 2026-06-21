@@ -242,21 +242,24 @@ class FacultyDashboard extends StatelessWidget {
                                           color: const Color(0xFF25D366)
                                               .withValues(alpha: 0.4)),
                                     ),
-                                    child: const Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.share_rounded,
-                                            color: Color(0xFF25D366), size: 16),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'Share via WhatsApp',
-                                          style: TextStyle(
-                                            color: Color(0xFF25D366),
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 12,
+                                    child: const FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.share_rounded,
+                                              color: Color(0xFF25D366), size: 16),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Share via WhatsApp',
+                                            style: TextStyle(
+                                              color: Color(0xFF25D366),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -275,21 +278,24 @@ class FacultyDashboard extends StatelessWidget {
                                       border: Border.all(
                                           color: AppTheme.primary.withValues(alpha: 0.3)),
                                     ),
-                                    child: const Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.copy_rounded,
-                                            color: AppTheme.primary, size: 16),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          'Copy Link',
-                                          style: TextStyle(
-                                            color: AppTheme.primary,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 12,
+                                    child: const FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.copy_rounded,
+                                              color: AppTheme.primary, size: 16),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Copy Link',
+                                            style: TextStyle(
+                                              color: AppTheme.primary,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -302,20 +308,23 @@ class FacultyDashboard extends StatelessWidget {
                                   color: AppTheme.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.people_rounded,
-                                        color: AppTheme.primary, size: 16),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '\${faculty.liveAttendanceCount.value} present',
-                                      style: const TextStyle(
-                                        color: AppTheme.primary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.people_rounded,
+                                          color: AppTheme.primary, size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${faculty.liveAttendanceCount.value} present',
+                                        style: const TextStyle(
+                                          color: AppTheme.primary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               )),
                             ],

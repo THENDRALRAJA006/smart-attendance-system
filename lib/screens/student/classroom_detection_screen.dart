@@ -117,7 +117,7 @@ class _ClassroomDetectionScreenState extends State<ClassroomDetectionScreen>
                                         color: (_ble.isScanning.value
                                                 ? AppTheme.primary
                                                 : AppTheme.textHint)
-                                            .withOpacity(opacity),
+                                            .withValues(alpha: opacity),
                                         width: 1.5,
                                       ),
                                     ),

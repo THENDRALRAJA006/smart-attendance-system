@@ -70,6 +70,7 @@ class StudentController extends GetxController {
   Future<void> loadAttendanceHistory() => fetchHistory(period: 'all');
 
   // ─── Refresh ─────────────────────────────────────────────
+  @override
   Future<void> refresh() async {
     await fetchDashboard();
     await fetchHistory(period: filterPeriod.value);

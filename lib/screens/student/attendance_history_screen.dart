@@ -209,7 +209,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen>
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primary.withOpacity(0.1),
+                                    color: AppTheme.primary.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -225,7 +225,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen>
                                 Expanded(
                                   child: Container(
                                     height: 1,
-                                    color: AppTheme.primary.withOpacity(0.1),
+                                    color: AppTheme.primary.withValues(alpha: 0.1),
                                   ),
                                 ),
                               ],
@@ -237,7 +237,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen>
                                 child: GlassmorphismCard(
                                   padding: const EdgeInsets.all(14),
                                   borderColor: _statusColor(record.status)
-                                      .withOpacity(0.15),
+                                      .withValues(alpha: 0.15),
                                   child: Row(
                                     children: [
                                       // ─── Status stripe ────────────
@@ -376,9 +376,9 @@ class _SummaryChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Column(
           children: [

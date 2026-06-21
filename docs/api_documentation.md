@@ -228,8 +228,23 @@ Marks attendance after BLE + face verification.
 ### GET `/admin/students/{student_id}/face-image`
 
 ### GET `/admin/faculty`
+List all faculty members.
+
 ### POST `/admin/faculty`
+Register a new faculty member. Since subjects require a valid faculty ID, they are assigned to a faculty in a two-step process: (1) create the faculty member, then (2) create subjects pointing to the faculty member's ID.
+
+**Request Body**
+```json
+{
+  "name": "Rajesh Kumar",
+  "email": "rajesh@smartattend.com",
+  "password": "Faculty@123",
+  "department": "Computer Science"
+}
+```
+
 ### DELETE `/admin/faculty/{faculty_id}`
+Delete a faculty member.
 
 ### GET `/admin/classrooms`
 ### POST `/admin/classrooms`
@@ -245,6 +260,17 @@ Marks attendance after BLE + face verification.
 
 ### GET `/admin/subjects`
 ### POST `/admin/subjects`
+Create a new subject and assign it to a faculty member by specifying their `faculty_id`.
+
+**Request Body**
+```json
+{
+  "subject_name": "Data Structures",
+  "subject_code": "CS201",
+  "department": "Computer Science",
+  "faculty_id": 2
+}
+```
 
 ### GET `/admin/analytics`
 Includes `low_attendance_alerts` (students < 75%).

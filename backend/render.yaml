@@ -10,7 +10,9 @@ services:
     runtime: python
     # ── Build: install deps + run Alembic migrations on every deploy ──
     buildCommand: pip install -r requirements.txt
-    startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 2 --log-level info
+    # ── 1 worker: safe for Render free tier (512MB RAM)
+    # ── Upgrade plan to 'starter' before increasing to 2+ workers
+    startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
     plan: free          # Upgrade to 'starter' for no sleep / better latency
     region: ohio        # us-east-2 — closest Render region to AWS us-east-1 RDS
     rootDir: backend    # Relative to repo root
@@ -31,6 +33,12 @@ services:
         sync: false           # Set to your Render URL after first deploy
       - key: ALLOWED_ORIGINS
         sync: false           # e.g. https://smart-attendance-system-2-qthq.onrender.com,https://yourapp.com
+
+      # Python runtime settings
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
+      - key: PYTHONUNBUFFERED
+        value: "1"
 
       # MySQL (AWS RDS)
       - key: DB_HOST

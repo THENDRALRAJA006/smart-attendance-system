@@ -12,9 +12,7 @@ class StorageService extends GetxService {
 
   final FlutterSecureStorage _secureStorage =
       const FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-    ),
+    aOptions: AndroidOptions(),
   );
 
   static const String _tokenKey = 'sa_jwt_token';

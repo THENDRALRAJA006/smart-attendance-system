@@ -1,7 +1,9 @@
 // ============================================================
-// SmartAttend — Attendance API Service
-// Handles: session lookup, face mark, attendance history,
+// SmartAttend — Attendance API Service (v4)
+// Handles: session lookup, face mark (with liveness), attendance history,
 //          faculty live-attendance, session creation
+// v4: Added confidence tiers (present/manual_review/rejected),
+//     liveness token forwarding, tiered AttendanceMarkResult
 // ============================================================
 
 import 'dart:io';
@@ -37,15 +39,39 @@ class AttendanceMarkResult {
   final int? attendanceId;
   final String? time;
   final String? date;
+  // v4: confidence tier + liveness
+  final String tier;           // 'present' | 'manual_review' | 'rejected'
+  final bool livenessVerified;
+  final String? subjectName;
+  final String? classroomName;
+  final String? facultyName;
 
   AttendanceMarkResult.fromJson(Map<String, dynamic> json)
-      : match        = json['match'] ?? false,
-        confidence   = (json['confidence'] as num?)?.toDouble() ?? 0.0,
-        message      = json['message'] ?? '',
-        attendanceId = json['attendance_id'],
-        time         = json['time'],
-        date         = json['date'];
+      : match            = json['match'] ?? false,
+        confidence        = (json['confidence'] as num?)?.toDouble() ?? 0.0,
+        message          = json['message'] ?? '',
+        attendanceId     = json['attendance_id'],
+        time             = json['time'],
+        date             = json['date'],
+        tier             = json['tier'] ?? 'present',
+        livenessVerified = json['liveness_verified'] ?? false,
+        subjectName      = json['subject_name'],
+        classroomName    = json['classroom_name'],
+        facultyName      = json['faculty_name'];
+
+  /// Human-readable tier label for UI display
+  String get tierLabel {
+    switch (tier) {
+      case 'present': return 'Verified Present ✅';
+      case 'manual_review': return 'Pending Review ⚠️';
+      case 'rejected': return 'Not Recognized ❌';
+      default: return tier;
+    }
+  }
+
+  bool get isFlagged => tier == 'manual_review';
 }
+
 
 class AttendanceRecord {
   final int id;
@@ -277,6 +303,38 @@ class AttendanceApiService {
     }
   }
 
+  // v4: Mark attendance WITH liveness token (anti-spoofing)
+  /// Submit face photo and optional liveness token to mark attendance.
+  /// liveness_token: from GET /auth/liveness-challenge, after successful verify.
+  Future<AttendanceMarkResult> markAttendanceWithLiveness({
+    required int sessionId,
+    required int rssi,
+    required File faceImage,
+    String? livenessToken,       // null = liveness skipped
+  }) async {
+    try {
+      final fields = <String, dynamic>{
+        'session_id': sessionId,
+        'rssi':       rssi,
+        'file': await MultipartFile.fromFile(
+          faceImage.path,
+          filename: 'face.jpg',
+        ),
+      };
+      if (livenessToken != null && livenessToken.isNotEmpty) {
+        fields['liveness_token'] = livenessToken;
+      }
+      final formData = FormData.fromMap(fields);
+      final res = await _api.postMultipart<Map<String, dynamic>>(
+        AppConstants.endpointAttendanceMark,
+        formData,
+      );
+      return AttendanceMarkResult.fromJson(res.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   // ════════════════════════════════════════════════════════════
   // STUDENT — Face Registration & Verification
   // ════════════════════════════════════════════════════════════
@@ -406,14 +464,21 @@ class AttendanceApiService {
   // COMPLETE FACE-ATTENDANCE WORKFLOW
   // ════════════════════════════════════════════════════════════
 
-  /// Full attendance workflow: verify → capture face → mark.
+  /// v4: Full attendance workflow: liveness → verify → capture face → mark.
   ///
-  /// Usage in Flutter:
+  /// If livenessToken provided, it is forwarded to the mark endpoint.
+  /// Confidence tiers:
+  ///   >= 95%  → present (auto-marked)
+  ///   90-95%  → manual_review (marked, flagged for faculty)
+  ///   < 90%   → rejected
+  ///
+  /// Usage:
   /// ```dart
   /// final result = await attendanceService.completeAttendanceFlow(
   ///   sessionId: sessionId,
   ///   rssi: bleRssi,
   ///   faceImage: capturedImage,
+  ///   livenessToken: authController.liveChallengeToken.value,
   ///   onStep: (step) => setState(() => currentStep = step),
   /// );
   /// ```
@@ -421,6 +486,7 @@ class AttendanceApiService {
     required int sessionId,
     required int rssi,
     required File faceImage,
+    String? livenessToken,
     void Function(String step)? onStep,
   }) async {
     // Step 1: Pre-check (BLE range + eligibility)
@@ -434,15 +500,17 @@ class AttendanceApiService {
       throw ApiException(message: preCheck.message);
     }
 
-    // Step 2: Mark attendance with face photo
+    // Step 2: Mark attendance with face photo + liveness token
     onStep?.call('Verifying face...');
-    final result = await markAttendance(
+    final result = await markAttendanceWithLiveness(
       sessionId: sessionId,
       rssi: rssi,
       faceImage: faceImage,
+      livenessToken: livenessToken,
     );
 
-    if (!result.match) {
+    // Handle tiers
+    if (result.tier == 'rejected') {
       throw ApiException(
         message: result.message.isNotEmpty
             ? result.message
@@ -450,7 +518,9 @@ class AttendanceApiService {
       );
     }
 
-    onStep?.call('Attendance marked!');
+    onStep?.call(result.tier == 'manual_review'
+        ? 'Attendance flagged for review.'
+        : 'Attendance marked!');
     return result;
   }
 }

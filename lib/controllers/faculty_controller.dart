@@ -147,7 +147,7 @@ class FacultyController extends GetxController {
   void _startLivePolling() {
     _stopLivePolling();
     _livePollingTimer = Timer.periodic(
-      const Duration(seconds: 10),
+      const Duration(seconds: 30), // 30s is sufficient for live classroom context
       (_) => fetchLiveAttendance(),
     );
     // Immediate first fetch

@@ -624,3 +624,71 @@ async def verify_liveness(
         f"passed={result['passed']}, challenge={result['challenge_type']}"
     )
     return result
+
+
+# ─── DELETE /auth/face-reset ──────────────────────────────────
+@router.delete("/face-reset", summary="Reset student face registration")
+async def reset_face_registration(
+    current_student: Student = Depends(get_current_student),
+    db: Session = Depends(get_db),
+):
+    """
+    Completely wipe the student's face registration:
+    - Deletes all 15 images from AWS S3 (students/{id}/face_*.jpg)
+    - Removes all Rekognition face IDs from the collection
+    - Clears all rows in student_faces table for this student
+    - Resets student.face_id and student.face_image_url to null
+
+    After this call, the student can re-register from pose 1.
+    """
+    student_id = current_student.id
+
+    # 1. Collect all Rekognition face IDs
+    face_records = db.query(StudentFace).filter(
+        StudentFace.student_id == student_id
+    ).all()
+    face_ids = [r.face_id for r in face_records if r.face_id]
+
+    # 2. Delete from Rekognition
+    deleted_rekognition = 0
+    if face_ids:
+        try:
+            deleted_rekognition = rekognition_service.delete_faces(face_ids)
+        except Exception as e:
+            logger.warning(
+                f"[FACE_RESET] Rekognition delete failure for student_id={student_id}: {e}"
+            )
+
+    # 3. Delete S3 images
+    deleted_s3 = 0
+    try:
+        deleted_s3 = s3_service.delete_student_folder(student_id)
+    except Exception as e:
+        logger.warning(
+            f"[FACE_RESET] S3 delete failure for student_id={student_id}: {e}"
+        )
+
+    # 4. Clear student_faces table
+    db.query(StudentFace).filter(StudentFace.student_id == student_id).delete()
+
+    # 5. Clear FaceProfile
+    db.query(FaceProfile).filter(FaceProfile.student_id == student_id).delete()
+
+    # 6. Reset student record
+    current_student.face_id = None
+    current_student.face_image_url = None
+    db.add(current_student)
+    db.commit()
+
+    logger.info(
+        f"[FACE_RESET] student_id={student_id}: "
+        f"rekognition_deleted={deleted_rekognition}, s3_deleted={deleted_s3}"
+    )
+
+    return {
+        "success": True,
+        "student_id": student_id,
+        "faces_deleted_from_rekognition": deleted_rekognition,
+        "s3_files_deleted": deleted_s3,
+        "message": "Face registration reset. You can now re-register from pose 1.",
+    }

@@ -29,7 +29,7 @@ import 'screens/faculty/faculty_dashboard.dart';
 import 'screens/faculty/qr_generator_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/student/attendance_history_screen.dart';
-import 'screens/student/attendance_success_screen.dart';
+import 'screens/student/attendance_result_screen.dart';
 import 'screens/student/attendance_verification_screen.dart';
 import 'screens/student/classroom_detection_screen.dart';
 import 'screens/student/qr_scanner_screen.dart';
@@ -186,8 +186,8 @@ class SmartAttendApp extends StatelessWidget {
           page: () => const AttendanceVerificationScreen(),
         ),
         GetPage(
-          name: AppConstants.routeAttendanceSuccess,
-          page: () => const AttendanceSuccessScreen(),
+          name: AppConstants.routeAttendanceResult,
+          page: () => const AttendanceResultScreen(),
         ),
         GetPage(
           name: AppConstants.routeAttendanceHistory,

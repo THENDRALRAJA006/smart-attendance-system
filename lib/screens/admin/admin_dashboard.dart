@@ -85,7 +85,7 @@ class AdminDashboard extends StatelessWidget {
                         crossAxisCount: 2,
                         mainAxisSpacing: 12,
                         crossAxisSpacing: 12,
-                        childAspectRatio: 1.6,
+                        childAspectRatio: 1.3,
                         physics: const NeverScrollableScrollPhysics(),
                         children: [
                           StatCard(

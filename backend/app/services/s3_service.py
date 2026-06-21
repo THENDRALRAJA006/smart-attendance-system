@@ -235,6 +235,58 @@ class S3Service:
                 )
             logger.warning(f"S3 bucket check warning: {e}")
 
+    # ─── v4: Delete all pose images for a student ───────────
+    def delete_student_folder(self, student_id: int) -> int:
+        """
+        Delete all images under the students/{student_id}/ prefix in S3.
+
+        Used by DELETE /auth/face-reset.
+
+        Returns:
+            Number of objects deleted
+        """
+        prefix = f"students/{student_id}/"
+        try:
+            # List all objects under the student prefix
+            response = self.client.list_objects_v2(
+                Bucket=self.bucket, Prefix=prefix
+            )
+            objects = response.get("Contents", [])
+
+            # Paginate if needed
+            while response.get("IsTruncated"):
+                response = self.client.list_objects_v2(
+                    Bucket=self.bucket,
+                    Prefix=prefix,
+                    ContinuationToken=response["NextContinuationToken"],
+                )
+                objects.extend(response.get("Contents", []))
+
+            if not objects:
+                logger.info(f"[S3] No images found for student {student_id}")
+                return 0
+
+            # Batch delete (max 1000 per call)
+            deleted = 0
+            for i in range(0, len(objects), 1000):
+                batch = objects[i : i + 1000]
+                self.client.delete_objects(
+                    Bucket=self.bucket,
+                    Delete={"Objects": [{"Key": obj["Key"]} for obj in batch]},
+                )
+                deleted += len(batch)
+
+            logger.info(
+                f"[S3] Deleted {deleted} images for student_id={student_id}"
+            )
+            return deleted
+
+        except ClientError as e:
+            logger.error(
+                f"[S3] Failed to delete student folder for student_id={student_id}: {e}"
+            )
+            return 0
+
 
 # ─── Singleton ───────────────────────────────────────────────
 s3_service = S3Service()

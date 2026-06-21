@@ -254,7 +254,7 @@ class SessionModel {
       subjectId: json['subject_id'],
       subjectName: json['subject_name'],
       subjectCode: json['subject_code'],
-      attendanceCode: json['attendance_code'],
+      attendanceCode: json['attendance_code'] ?? '',
       startTime: DateTime.parse(json['start_time']),
       endTime: json['end_time'] != null ? DateTime.parse(json['end_time']) : null,
       isActive: json['is_active'],

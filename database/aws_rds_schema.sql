@@ -1,7 +1,15 @@
 -- ============================================================
--- SmartAttend — AWS RDS MySQL Schema (v3)
+-- SmartAttend — AWS RDS MySQL Schema (v4)
+-- v4 adds: student_faces table (15-pose), liveness columns on attendance
 -- Run this script in AWS CloudShell or any MySQL client to
 -- bootstrap the smart_attendance database with all tables.
+--
+-- Host  : smart-attendance-db.cwh6sya6karz.us-east-1.rds.amazonaws.com
+-- Port  : 3306
+-- User  : admin
+-- DB    : smart_attendance
+-- ============================================================
+
 --
 -- Host  : smart-attendance-db.cwh6sya6karz.us-east-1.rds.amazonaws.com
 -- Port  : 3306
@@ -177,17 +185,21 @@ CREATE TABLE IF NOT EXISTS attendance_links (
 -- ────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS attendance (
-    id              INT AUTO_INCREMENT PRIMARY KEY,
-    student_id      INT          NOT NULL,
-    classroom_id    INT          NOT NULL,
-    subject_id      INT          NOT NULL,
-    session_id      INT,
-    date            DATE         NOT NULL,
-    time            VARCHAR(10)  NOT NULL,   -- HH:MM
-    status          VARCHAR(10)  NOT NULL DEFAULT 'present',  -- present|absent|late
-    rssi            INT,
-    face_confidence FLOAT,
-    marked_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    student_id        INT           NOT NULL,
+    classroom_id      INT           NOT NULL,
+    subject_id        INT           NOT NULL,
+    session_id        INT,
+    date              DATE          NOT NULL,
+    time              VARCHAR(10)   NOT NULL,   -- HH:MM
+    status            VARCHAR(15)   NOT NULL DEFAULT 'present',  -- present|manual_review|rejected
+    rssi              INT,
+    face_confidence   FLOAT,
+    -- v4: anti-spoofing + liveness verification columns
+    liveness_verified TINYINT(1)    NOT NULL DEFAULT 0,     -- passed blink/smile/movement challenge
+    confidence_tier   VARCHAR(15)   DEFAULT 'present',      -- present|manual_review|rejected
+    attendance_method VARCHAR(20)   DEFAULT 'ble_face',     -- ble_face|qr
+    marked_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_student_session (student_id, session_id),
     CONSTRAINT fk_att_student   FOREIGN KEY (student_id)   REFERENCES students(id),
     CONSTRAINT fk_att_classroom FOREIGN KEY (classroom_id) REFERENCES classrooms(id),
@@ -195,10 +207,34 @@ CREATE TABLE IF NOT EXISTS attendance (
     CONSTRAINT fk_att_session   FOREIGN KEY (session_id)   REFERENCES sessions(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+
 -- ────────────────────────────────────────────────────────────
--- 8. Seed: default admin account  (password = Admin@1234)
+-- 8a. v4: student_faces table
+-- Stores all 15 guided-pose face images per student.
+-- Folder structure: students/{student_id}/face_{pose_index:02d}.jpg
+-- is_primary=1 for poses indexed in Rekognition (poses 1,2,4,13,15)
 -- ────────────────────────────────────────────────────────────
--- bcrypt hash of "Admin@1234" — change on first login!
+
+CREATE TABLE IF NOT EXISTS student_faces (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    student_id        INT           NOT NULL,
+    face_id           VARCHAR(255),           -- AWS Rekognition FaceId (NULL if not indexed)
+    image_url         VARCHAR(500)  NOT NULL,  -- S3 URL: s3://bucket/students/{id}/face_XX.jpg
+    s3_key            VARCHAR(500)  NOT NULL,  -- S3 object key: students/{id}/face_XX.jpg
+    pose_index        INT           NOT NULL,  -- 1-15
+    pose_type         VARCHAR(50)   NOT NULL,  -- front_face, left_15, left_30, etc.
+    confidence        FLOAT,                   -- Rekognition indexing confidence score
+    is_primary        TINYINT(1)    NOT NULL DEFAULT 0,  -- 1 = indexed in Rekognition
+    registration_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_student_pose (student_id, pose_index),
+    INDEX idx_sf_student_id (student_id),
+    CONSTRAINT fk_sf_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ────────────────────────────────────────────────────────────
+-- 9. Seed: default admin account  (password = Admin@1234)
+-- ────────────────────────────────────────────────────────────
+-- bcrypt hash of "Admin@1234" -- change on first login!
 INSERT IGNORE INTO admins (name, email, password_hash)
 VALUES (
     'System Admin',
@@ -207,6 +243,7 @@ VALUES (
 );
 
 -- ────────────────────────────────────────────────────────────
--- 9. Verification: list all created tables
+-- 10. Verification: list all created tables
 -- ────────────────────────────────────────────────────────────
 SHOW TABLES;
+

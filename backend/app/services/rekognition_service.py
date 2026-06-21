@@ -262,6 +262,12 @@ class RekognitionService:
                 }
 
             # Step 2: Search collection — threshold set low to capture all candidates
+            logger.info(
+                f"[AWS_SEARCH_FACES] Calling SearchFacesByImage: "
+                f"CollectionId={self.collection_id}, "
+                f"Image bytes size={len(image_bytes)} bytes, "
+                f"FaceMatchThreshold={TIER_MANUAL_REVIEW}"
+            )
             search_response = self.client.search_faces_by_image(
                 CollectionId=self.collection_id,
                 Image={"Bytes": image_bytes},
@@ -272,6 +278,7 @@ class RekognitionService:
             face_matches = search_response.get("FaceMatches", [])
 
             if not face_matches:
+                logger.info("[AWS_SIMILARITY] SearchFacesByImage returned no matches.")
                 return {
                     "tier": "rejected",
                     "match": False,
@@ -279,6 +286,16 @@ class RekognitionService:
                     "face_id": None,
                     "message": "Face does not match any registered student",
                 }
+
+            logger.info(
+                f"[AWS_SIMILARITY] SearchFacesByImage returned {len(face_matches)} match(es):"
+            )
+            for m in face_matches:
+                logger.info(
+                    f"  - Match: FaceId={m['Face'].get('FaceId')}, "
+                    f"ExternalImageId={m['Face'].get('ExternalImageId')}, "
+                    f"Similarity={m['Similarity']:.2f}%"
+                )
 
             # Step 3: Filter matches belonging to THIS student
             student_prefix = f"student_{student_id}"
@@ -291,6 +308,10 @@ class RekognitionService:
                 # Check if face matched another student (security concern)
                 top_match = face_matches[0]
                 other_id = top_match["Face"].get("ExternalImageId", "unknown")
+                logger.warning(
+                    f"[AWS_SIMILARITY] Security warning: Face matched a different registered student: {other_id} "
+                    f"(Similarity={top_match['Similarity']:.2f}%)"
+                )
                 return {
                     "tier": "rejected",
                     "match": False,
@@ -325,8 +346,8 @@ class RekognitionService:
                 )
 
             logger.info(
-                f"Face verification: student={student_id}, "
-                f"similarity={similarity:.1f}%, tier={tier}"
+                f"[AWS_SIMILARITY] Resolved similarity for student_id={student_id}: "
+                f"similarity={similarity:.1f}%, face_id={face_id}, tier={tier}"
             )
 
             return {
@@ -498,6 +519,43 @@ class RekognitionService:
                 f"Failed to delete student faces for student {student_id}: {e}"
             )
             return 0
+
+    # ─── Delete faces by FaceId list ─────────────────────────
+    def delete_faces(self, face_ids: list[str]) -> int:
+        """
+        Delete a list of specific Rekognition FaceIds from the collection.
+
+        Used by DELETE /auth/face-reset when we already have the FaceIds
+        stored in the student_faces table.
+
+        Args:
+            face_ids: List of Rekognition FaceId UUIDs
+
+        Returns:
+            Number of faces deleted
+        """
+        if not face_ids:
+            return 0
+
+        deleted = 0
+        try:
+            # Rekognition allows max 1000 FaceIds per delete call
+            for i in range(0, len(face_ids), 1000):
+                batch = face_ids[i : i + 1000]
+                response = self.client.delete_faces(
+                    CollectionId=self.collection_id,
+                    FaceIds=batch,
+                )
+                deleted += len(response.get("DeletedFaces", []))
+
+            logger.info(
+                f"[REKOGNITION] Deleted {deleted} faces from collection"
+            )
+            return deleted
+
+        except ClientError as e:
+            logger.error(f"[REKOGNITION] delete_faces failed: {e}")
+            return deleted  # Return partial count
 
 
 # ─── Singleton ───────────────────────────────────────────────

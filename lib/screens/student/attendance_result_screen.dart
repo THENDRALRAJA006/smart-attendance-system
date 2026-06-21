@@ -1,5 +1,6 @@
 // ============================================================
-// SmartAttend — Attendance Success / Failure / Out-of-Range Screen
+// SmartAttend — Attendance Result Screen
+// Displays success, failure, or out-of-range status.
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -10,15 +11,15 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/glassmorphism_card.dart';
 
-class AttendanceSuccessScreen extends StatefulWidget {
-  const AttendanceSuccessScreen({super.key});
+class AttendanceResultScreen extends StatefulWidget {
+  const AttendanceResultScreen({super.key});
 
   @override
-  State<AttendanceSuccessScreen> createState() =>
-      _AttendanceSuccessScreenState();
+  State<AttendanceResultScreen> createState() =>
+      _AttendanceResultScreenState();
 }
 
-class _AttendanceSuccessScreenState extends State<AttendanceSuccessScreen>
+class _AttendanceResultScreenState extends State<AttendanceResultScreen>
     with TickerProviderStateMixin {
   late AnimationController _scaleController;
   late AnimationController _rippleController;
@@ -236,8 +237,8 @@ class _AttendanceSuccessScreenState extends State<AttendanceSuccessScreen>
                             icon: Icons.info_outline,
                             label: 'Reason',
                             value: ctrl.errorMessage.value.isNotEmpty
-                                ? ctrl.errorMessage.value
-                                : 'Face match below 90% threshold',
+                                  ? ctrl.errorMessage.value
+                                  : 'Face match below 90% threshold',
                             color: AppTheme.error,
                           ),
                           const SizedBox(height: 12),

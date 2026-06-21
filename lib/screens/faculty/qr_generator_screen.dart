@@ -154,7 +154,7 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                                 )
                               else
                                 DropdownButtonFormField<int>(
-                                  value: _selectedSessionId == 0
+                                  initialValue: _selectedSessionId == 0
                                       ? null
                                       : _selectedSessionId,
                                   dropdownColor: AppTheme.bgCard,

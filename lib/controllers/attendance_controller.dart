@@ -1,10 +1,11 @@
 // ============================================================
-// SmartAttend — Attendance Controller (v3)
-// Deep-link → BLE → Face verify → Mark attendance
-// Now uses session_id from WhatsApp deep link (no code entry)
+// SmartAttend — Attendance Controller (v4)
+// Deep-link → BLE → Liveness → Face verify → Mark attendance
+// v4: liveness token forwarding, confidence tier handling
 // ============================================================
 
 import 'dart:io';
+import 'dart:developer' as dev;
 
 import 'package:dio/dio.dart' as dio;
 import 'package:flutter/services.dart';
@@ -94,25 +95,106 @@ class AttendanceController extends GetxController {
   // ─── Step 3: Select Classroom ────────────────────────────
   /// When a deep-link session is active, validate that the detected
   /// classroom UUID matches the session's classroom.
-  void selectClassroom(DetectedClassroom classroom) {
+  /// FALLBACK: if deepLinkSessionId is null, fetches the active session
+  /// by classroom BLE UUID or name.
+  Future<void> selectClassroom(DetectedClassroom classroom) async {
+    dev.log(
+      '[DETECTED_CLASSROOM] selectClassroom selected: '
+      'name=${classroom.name}, deviceId=${classroom.deviceId}, '
+      'rssi=${classroom.rssi} dBm, isInRange=${classroom.isInRange}',
+      name: 'AttendanceController',
+    );
+
     if (!classroom.isInRange) {
       result.value = AttendanceResult.outOfRange;
       errorMessage.value = 'You are out of classroom range. Move closer.';
-      Get.toNamed(AppConstants.routeAttendanceSuccess);
+      Get.toNamed(AppConstants.routeAttendanceResult);
       return;
     }
 
-    // If we have a deep-link classroom UUID, verify it matches
+    // ─── Fallback active session lookup if launched directly ───
+    if (deepLinkSessionId.value == null) {
+      dev.log(
+        '[ACTIVE_SESSION_LOOKUP] Querying active session for classroom name=${classroom.name}, uuid=${classroom.deviceId}',
+        name: 'AttendanceController',
+      );
+      isLoading.value = true;
+      errorMessage.value = '';
+      try {
+        final response = await _api.get('/attendance/active-session', queryParameters: {
+          'classroom_uuid': classroom.deviceId,
+          'classroom_name': classroom.name,
+        });
+        
+        final data = response.data as Map<String, dynamic>;
+        final int? activeSessionId = data['session_id'];
+        
+        if (activeSessionId != null) {
+          setDeepLinkContext(
+            sessionId: activeSessionId,
+            subjectName: data['subject_name'] as String?,
+            classroomName: data['classroom_name'] as String?,
+            classroomUuid: data['classroom_uuid'] as String?,
+          );
+          dev.log(
+            '[ACTIVE_SESSION_LOOKUP] Resolved active session ID: $activeSessionId for classroom: ${data['classroom_name']}',
+            name: 'AttendanceController',
+          );
+        } else {
+          errorMessage.value = 'No active attendance session found in this classroom.';
+          result.value = AttendanceResult.failed;
+          Get.toNamed(AppConstants.routeAttendanceResult);
+          return;
+        }
+      } on dio.DioException catch (e) {
+        final err = ApiException.fromDioError(e);
+        errorMessage.value = err.message;
+        result.value = AttendanceResult.failed;
+        Get.toNamed(AppConstants.routeAttendanceResult);
+        return;
+      } catch (e) {
+        errorMessage.value = 'Failed to fetch active session: $e';
+        result.value = AttendanceResult.failed;
+        Get.toNamed(AppConstants.routeAttendanceResult);
+        return;
+      } finally {
+        isLoading.value = false;
+      }
+    }
+
+    // Verify classroom matches expected deep-link UUID (either deviceId or room_name contains it)
     final expectedUuid = deepLinkClassroomUuid.value;
+    dev.log(
+      '[EXPECTED_CLASSROOM] Performing classroom validation: '
+      'expectedUuid=$expectedUuid, expectedName=${deepLinkSessionClassroom.value}',
+      name: 'AttendanceController',
+    );
     if (expectedUuid.isNotEmpty) {
       final bleUuid = classroom.deviceId.toUpperCase();
+      final bleName = classroom.name.toUpperCase();
       final expected = expectedUuid.toUpperCase();
-      if (!bleUuid.contains(expected) && !expected.contains(bleUuid)) {
+      
+      final matchesDevice = bleUuid.contains(expected) || expected.contains(bleUuid);
+      final matchesName = bleName.contains(expected) || expected.contains(bleName);
+      
+      dev.log(
+        '[EXPECTED_CLASSROOM] Validation results: '
+        'bleUuid=$bleUuid, bleName=$bleName, expected=$expected, '
+        'matchesDevice=$matchesDevice, matchesName=$matchesName',
+        name: 'AttendanceController',
+      );
+      
+      if (!matchesDevice && !matchesName) {
+        dev.log(
+          '[EXPECTED_CLASSROOM] VALIDATION FAILED: Classroom mismatch! '
+          'Wrong classroom detected. Expected: ${deepLinkSessionClassroom.value}',
+          name: 'AttendanceController',
+        );
         errorMessage.value =
             'Wrong classroom detected. Please go to '
             '${deepLinkSessionClassroom.value}.';
         result.value = AttendanceResult.failed;
-        Get.toNamed(AppConstants.routeAttendanceSuccess);
+        Get.toNamed(AppConstants.routeAttendanceResult);
         return;
       }
     }
@@ -123,8 +205,10 @@ class AttendanceController extends GetxController {
     Get.toNamed(AppConstants.routeAttendanceVerification);
   }
 
-  // ─── Step 4: Capture & Verify Face ──────────────────────
-  Future<void> captureAndVerify() async {
+  // ─── Step 4: Capture & Verify Face ────────────────────────
+  /// [livenessToken]: Optional signed JWT from liveness verification.
+  /// Pass after a successful GET /auth/liveness-challenge + POST /auth/liveness-verify.
+  Future<void> captureAndVerify({String? livenessToken}) async {
     step.value = AttendanceStep.verifying;
     isLoading.value = true;
     errorMessage.value = '';
@@ -134,15 +218,22 @@ class AttendanceController extends GetxController {
       final imageFile = await CameraService.to.captureImage();
 
       // Send to backend for face verification + attendance marking
-      final response = await _verifyAndMark(imageFile);
+      final response = await _verifyAndMark(imageFile, livenessToken: livenessToken);
       confidenceScore.value = (response['confidence'] as num? ?? 0.0).toDouble();
 
-      if (response['match'] == true) {
-        result.value = AttendanceResult.success;
-        successMessage.value = response['message'] ?? 'Attendance marked successfully!';
-      } else {
+      // v4 tier handling
+      final tier = response['tier'] as String? ?? 'present';
+      if (tier == 'rejected') {
         result.value = AttendanceResult.failed;
         errorMessage.value = response['message'] ?? 'Face not recognized. Please try again.';
+      } else {
+        // 'present' or 'manual_review' both count as success
+        result.value = AttendanceResult.success;
+        successMessage.value = response['message'] ?? (
+          tier == 'manual_review'
+              ? 'Attendance flagged for review ⚠️'
+              : 'Attendance marked successfully! ✅'
+        );
       }
     } on dio.DioException catch (e) {
       final err = ApiException.fromDioError(e);
@@ -159,49 +250,129 @@ class AttendanceController extends GetxController {
     } finally {
       isLoading.value = false;
       step.value = AttendanceStep.done;
-      Get.offNamed(AppConstants.routeAttendanceSuccess);
+      Get.offNamed(AppConstants.routeAttendanceResult);
     }
   }
 
-  // ─── API: Verify Face + Mark Attendance ──────────────────
+  // ─── API: Verify Face + Mark Attendance ──────────────────────
   /// Uses session_id from the deep link — the primary attendance method.
-  Future<Map<String, dynamic>> _verifyAndMark(File imageFile) async {
+  /// FALLBACK: if deepLinkSessionId is null, tries to resolve via classroom UUID
+  /// detected by BLE. This supports the case where the student opens the app
+  /// directly without tapping a WhatsApp link.
+  /// [livenessToken]: Optional signed challenge JWT for anti-spoofing.
+  Future<Map<String, dynamic>> _verifyAndMark(
+    File imageFile, {
+    String? livenessToken,
+  }) async {
     final classroom = selectedClassroom.value;
-    final sessionId = deepLinkSessionId.value;
+    int? sessionId = deepLinkSessionId.value;
+
+    dev.log(
+      '[MARK] _verifyAndMark called: '
+      'deepLinkSessionId=$sessionId, '
+      'selectedClassroom=${classroom?.deviceId}, '
+      'rssi=${classroom?.rssi ?? capturedRssi.value}',
+      name: 'AttendanceController',
+    );
 
     if (sessionId == null) {
       throw Exception(
-        'No session found. Please tap the WhatsApp attendance link first.',
+        'No session found. Please select a classroom or tap the WhatsApp link first.',
       );
     }
+
+    dev.log(
+      '[MARK] Sending to /attendance/mark: '
+      'session_id=$sessionId, '
+      'rssi=${classroom?.rssi ?? capturedRssi.value} dBm, '
+      'liveness=${livenessToken != null}',
+      name: 'AttendanceController',
+    );
 
     final formData = dio.FormData.fromMap({
       'file':       await dio.MultipartFile.fromFile(imageFile.path, filename: 'face.jpg'),
       'session_id': sessionId.toString(),
       'rssi':       (classroom?.rssi ?? capturedRssi.value).toString(),
+      if (livenessToken != null && livenessToken.isNotEmpty)
+        'liveness_token': livenessToken,
     });
 
     final response = await _api.postMultipart('/attendance/mark', formData);
-    return response.data as Map<String, dynamic>;
+    final data = response.data as Map<String, dynamic>;
+
+    dev.log(
+      '[MARK] Response: '
+      'match=${data['match']}, '
+      'tier=${data['tier']}, '
+      'confidence=${data['confidence']}, '
+      'attendance_id=${data['attendance_id']}',
+      name: 'AttendanceController',
+    );
+
+    return data;
   }
 
-  // ─── Fetch session info when deep link arrives ────────────
+  // ─── Fetch session info when deep link arrives ──────────────────
+  /// Called immediately after setDeepLinkContext to pre-fetch session metadata
+  /// (subject, classroom, BLE UUID) from the backend via /attendance/verify.
   Future<void> fetchSessionInfo(int sessionId) async {
+    dev.log(
+      '[FETCH] fetchSessionInfo called for session_id=$sessionId',
+      name: 'AttendanceController',
+    );
     try {
-      // We don't have a public session info endpoint, but verify is enough
+      // POST /attendance/verify with rssi=0 to skip BLE check at this stage
       final formData = dio.FormData.fromMap({
         'session_id': sessionId.toString(),
         'rssi': '0', // initial check — RSSI validated later after BLE scan
       });
       final response = await _api.postMultipart('/attendance/verify', formData);
       final data = response.data as Map<String, dynamic>;
+
+      dev.log(
+        '[FETCH] Response: eligible=${data['eligible']}, step=${data['step']}, '
+        'classroom=${data['classroom_name']}, uuid=${data['classroom_uuid']}, '
+        'subject=${data['subject_name']}',
+        name: 'AttendanceController',
+      );
+
       if (data['eligible'] == true || data['step'] == 'duplicate') {
         deepLinkSessionSubject.value   = data['subject_name'] ?? '';
         deepLinkSessionClassroom.value = data['classroom_name'] ?? '';
         deepLinkClassroomUuid.value    = data['classroom_uuid'] ?? '';
+
+        dev.log(
+          '[FETCH] Session context set: '
+          'subject=${deepLinkSessionSubject.value}, '
+          'classroom=${deepLinkSessionClassroom.value}, '
+          'uuid=${deepLinkClassroomUuid.value}',
+          name: 'AttendanceController',
+        );
+      } else {
+        dev.log(
+          '[FETCH] Session verify returned not-eligible: '
+          'step=${data['step']}, message=${data['message']}',
+          name: 'AttendanceController',
+        );
+        // Set subject/classroom even when not eligible (so UI can display it)
+        deepLinkSessionSubject.value   = data['subject_name'] ?? '';
+        deepLinkSessionClassroom.value = data['classroom_name'] ?? '';
+        deepLinkClassroomUuid.value    = data['classroom_uuid'] ?? '';
       }
-    } catch (_) {
-      // Non-critical — BLE + face still enforced
+    } on dio.DioException catch (e) {
+      final err = ApiException.fromDioError(e);
+      dev.log(
+        '[FETCH] DioException: status=${err.statusCode}, message=${err.message}',
+        name: 'AttendanceController',
+        error: e,
+      );
+      // Non-critical: BLE + face still enforced; UI shows session info as empty
+    } catch (e) {
+      dev.log(
+        '[FETCH] Unexpected error: $e',
+        name: 'AttendanceController',
+        error: e,
+      );
     }
   }
 

@@ -3,6 +3,7 @@
 // ============================================================
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' as getx;
 import '../constants/app_constants.dart';
 import '../services/storage_service.dart';
@@ -62,19 +63,19 @@ class ApiClient {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           final url = '${options.baseUrl}${options.path}';
-          print("REQUEST URL: $url");
+          debugPrint("REQUEST URL: $url");
           return handler.next(options);
         },
         onResponse: (response, handler) {
-          print("STATUS CODE: ${response.statusCode}");
-          print("BODY: ${response.data}");
+          debugPrint("STATUS CODE: ${response.statusCode}");
+          debugPrint("BODY: ${response.data}");
           return handler.next(response);
         },
         onError: (error, handler) {
           final url = '${error.requestOptions.baseUrl}${error.requestOptions.path}';
-          print("REQUEST URL: $url");
-          print("STATUS CODE: ${error.response?.statusCode}");
-          print("BODY: ${error.response?.data}");
+          debugPrint("REQUEST URL: $url");
+          debugPrint("STATUS CODE: ${error.response?.statusCode}");
+          debugPrint("BODY: ${error.response?.data}");
           return handler.next(error);
         },
       ),

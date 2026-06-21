@@ -11,8 +11,8 @@ class AppConstants {
   // static const String baseUrl = 'http://10.0.2.2:8000'; // Android emulator
   // static const String baseUrl = 'http://localhost:8000'; // Web/Desktop
 
-  static const int connectTimeout = 30; // seconds
-  static const int receiveTimeout = 30; // seconds
+  static const int connectTimeout = 30;  // seconds
+  static const int receiveTimeout = 60;  // seconds — extended for AWS Rekognition (cold start ~8s × 15 poses)
 
   // ─── JWT ────────────────────────────────────────────────
   static const String tokenKey       = 'smart_attend_jwt';
@@ -40,7 +40,7 @@ class AppConstants {
   static const String routeStudentDashboard     = '/student/dashboard';
   static const String routeClassroomDetection   = '/student/classroom';
   static const String routeAttendanceVerification = '/student/verify';
-  static const String routeAttendanceSuccess    = '/student/success';
+  static const String routeAttendanceResult     = '/student/result';
   static const String routeAttendanceHistory    = '/student/history';
   static const String routeReports              = '/student/reports';
   static const String routeQrScanner           = '/student/qr-scan';

@@ -154,6 +154,9 @@ def validate_rssi(
     """
     Validate BLE signal strength.
 
+    rssi == 0 is a special bypass value used during pre-check (before BLE scan)
+    or QR fallback mode — skip threshold enforcement in that case.
+
     Args:
         rssi: Received signal strength (dBm)
         threshold: Fallback minimum RSSI (default -70 dBm)
@@ -163,6 +166,14 @@ def validate_rssi(
     Raises:
         HTTPException 403: Out of range
     """
+    # rssi == 0 is the bypass sentinel value (QR mode / pre-BLE scan)
+    if rssi == 0:
+        logger.info(
+            f"[BLE] RSSI=0 bypass — skipping threshold check "
+            f"(classroom_id={classroom_id})"
+        )
+        return
+
     # Load per-classroom threshold from BleBeacon table if available
     effective_threshold = threshold
     if classroom_id and db:
@@ -209,22 +220,33 @@ def validate_student_eligibility(
     session: SessionModel,
 ) -> None:
     """
-    Verify that the student belongs to the correct department/year/section
-    for this attendance session.
+    Verify that the student is eligible for this attendance session.
 
-    Uses the subject's department field for cross-checking.
+    Department check:
+    - Only enforced when subject.department is non-empty
+    - Comparison is case-insensitive and whitespace-stripped
+    - Logs a warning but does NOT reject if department is null/empty
+      (supports cross-department electives)
 
     Raises:
-        HTTPException 403: Student not eligible for this session
+        HTTPException 403: Student clearly not eligible (department mismatch)
     """
     from app.models.models import Subject
 
     subject = db.query(Subject).filter(Subject.id == session.subject_id).first()
 
-    if subject and subject.department:
-        # Only enforce if the subject has a department set
-        student_dept  = student.department.strip().lower()
-        subject_dept  = subject.department.strip().lower()
+    if not subject:
+        # Subject was deleted after session was created — allow attendance
+        logger.warning(
+            f"[ELIGIBILITY] Subject id={session.subject_id} not found — "
+            f"skipping department check for student_id={student.id}"
+        )
+        return
+
+    # Only enforce department check if the subject has a non-empty department set
+    if subject.department and subject.department.strip():
+        student_dept = student.department.strip().lower() if student.department else ""
+        subject_dept = subject.department.strip().lower()
 
         logger.info(
             f"[ELIGIBILITY] student_id={student.id} ({student.name}), "
@@ -233,26 +255,31 @@ def validate_student_eligibility(
             f"session_id={session.id}"
         )
 
-        if student_dept != subject_dept:
+        if student_dept and subject_dept and student_dept != subject_dept:
             logger.warning(
-                f"[ELIGIBILITY] REJECTED: student_id={student.id} dept='{student.department}' "
-                f"!= subject dept='{subject.department}' for session_id={session.id}"
+                f"[ELIGIBILITY] REJECTED: student_id={student.id} "
+                f"dept='{student.department}' != subject dept='{subject.department}' "
+                f"for session_id={session.id}"
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(
                     f"You are not eligible for this session. "
-                    f"Session is for '{subject.department}', "
-                    f"but your department is '{student.department}'."
+                    f"Session is for '{subject.department}' department, "
+                    f"but your department is '{student.department}'. "
+                    f"Contact your faculty if this is incorrect."
                 ),
             )
 
         logger.info(
-            f"[ELIGIBILITY] APPROVED: student_id={student.id} matches dept='{subject.department}'"
+            f"[ELIGIBILITY] APPROVED: student_id={student.id} "
+            f"matches dept='{subject.department}'"
         )
     else:
+        # No department restriction configured — allow all students
         logger.info(
-            f"[ELIGIBILITY] No department restriction on subject_id={session.subject_id}, "
+            f"[ELIGIBILITY] No department restriction on "
+            f"subject_id={session.subject_id} ('{getattr(subject, 'subject_name', '')}'), "
             f"student_id={student.id} approved"
         )
 
@@ -302,9 +329,11 @@ def mark_attendance(
     db.refresh(record)
 
     logger.info(
-        f"Attendance marked: student={student_id}, "
+        f"[ATTENDANCE_MARKING] Attendance record created: student={student_id}, "
         f"session={session.id}, confidence={face_confidence:.1f}%, "
-        f"tier={confidence_tier}, liveness={liveness_verified}"
+        f"tier={confidence_tier}, liveness={liveness_verified}, "
+        f"classroom_id={session.classroom_id}, subject_id={session.subject_id}, "
+        f"rssi={rssi} dBm, method={attendance_method}"
     )
     return record
 

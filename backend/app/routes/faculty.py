@@ -86,7 +86,6 @@ async def faculty_dashboard(
                 "subject_id":     r.subject_id,
                 "subject_name":   r.subject_name,
                 "subject_code":   r.subject_code,
-                "attendance_code": r.attendance_code,  # needed by Flutter SessionModel
                 "start_time":     r.start_time.isoformat(),
                 "end_time":       r.end_time.isoformat() if r.end_time else None,
                 "is_active":      r.is_active,
@@ -631,7 +630,7 @@ async def generate_qr_token(
     Students scan this QR code as a BLE fallback to mark attendance.
     Token expires in 10 minutes.
     """
-    import jwt
+    from jose import jwt as jose_jwt
     from datetime import datetime, timedelta
 
     session_id = request.get("session_id")
@@ -663,8 +662,8 @@ async def generate_qr_token(
         "iat": datetime.utcnow(),
     }
 
-    # Sign with app secret
-    token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    # Sign with app secret using python-jose (same library as the rest of the app)
+    token = jose_jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
     logger.info(
         f"QR token generated: faculty={current_faculty.id}, session={session_id}, "

@@ -161,12 +161,83 @@ class StudentDashboard extends StatelessWidget {
                   }),
                 ),
 
+
+                // ─── Face Registration Warning Banner ────────
+                SliverToBoxAdapter(
+                  child: Obx(() {
+                    final s = auth.currentStudent.value;
+                    print("===== FACE DEBUG =====");
+                    print("Student Name: ${s?.name}");
+                    print("Face ID: ${s?.faceId}");
+                    print("Face URL: ${s?.faceImageUrl}");
+                    print("======================");
+                    // Show warning if student has not yet registered their face
+                    if (s == null || (s.faceId != null && s.faceId!.isNotEmpty)) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                      child: GestureDetector(
+                        onTap: () => Get.toNamed(AppConstants.routeFaceRegister),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppTheme.warning.withValues(alpha: 0.15),
+                                AppTheme.error.withValues(alpha: 0.10),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: AppTheme.warning.withValues(alpha: 0.4)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.face_retouching_off_rounded,
+                                  color: AppTheme.warning, size: 22),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '⚠️ Face Not Registered',
+                                      style: TextStyle(
+                                        color: AppTheme.warning,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Tap here to complete face registration — required for attendance.',
+                                      style: TextStyle(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.arrow_forward_ios_rounded,
+                                  color: AppTheme.warning, size: 14),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
                 // ─── Attendance Overview Card ─────────────────
                 SliverToBoxAdapter(
                   child: Obx(() {
                     final stats = student.dashboardStats.value;
+                    
                     if (stats == null) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24),
