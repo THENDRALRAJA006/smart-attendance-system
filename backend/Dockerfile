@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     default-libmysqlclient-dev \
     pkg-config \
     curl \
+    libglib2.0-0 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # ─── Working directory ───────────────────────────────────────
@@ -22,7 +24,9 @@ WORKDIR /app
 
 # ─── Install Python dependencies first (for layer caching) ──
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip uninstall -y opencv-python opencv-python-headless && \
+    pip install --no-cache-dir opencv-python-headless==4.10.0.84
 
 # ─── Copy application code ───────────────────────────────────
 COPY . .

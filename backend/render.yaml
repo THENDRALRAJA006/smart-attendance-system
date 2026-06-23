@@ -9,7 +9,7 @@ services:
     name: smartattend-api
     runtime: python
     # ── Build: install deps + run Alembic migrations on every deploy ──
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && pip uninstall -y opencv-python opencv-python-headless && pip install opencv-python-headless==4.10.0.84
     # ── 1 worker: safe for Render free tier (512MB RAM)
     # ── Upgrade plan to 'starter' before increasing to 2+ workers
     startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
