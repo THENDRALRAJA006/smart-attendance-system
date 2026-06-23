@@ -250,36 +250,26 @@ class RekognitionService:
                 "message": "No face match found in collection.",
             }
 
-        # Apply tier logic in Python
+        # Apply strict threshold logic in Python
         confidence = best_similarity
         logger.info(f"Similarity score: {confidence}")
         if confidence >= threshold:
             tier = "present"
+            matched = True
             message = f"Face matched successfully ({confidence:.1f}%)"
             logger.info(
                 f"[REKOGNITION] MATCH ✅ student_id={student_id}, "
                 f"confidence={confidence:.2f}%, tier=present"
             )
-        elif confidence >= AWS_MIN_THRESHOLD:
-            tier = "manual_review"
-            message = (
-                f"Face matched but confidence is low ({confidence:.1f}%). "
-                "Attendance flagged for manual review."
-            )
-            logger.warning(
-                f"[REKOGNITION] LOW CONFIDENCE ⚠️ student_id={student_id}, "
-                f"confidence={confidence:.2f}%, tier=manual_review"
-            )
         else:
-            # Should not reach here (AWS pre-filters at 75%), but defensive
             tier = "rejected"
-            message = f"Face confidence too low ({confidence:.1f}%)."
+            matched = False
+            message = f"Face confidence too low ({confidence:.1f}%). Match threshold is {threshold:.1f}%."
             logger.warning(
                 f"[REKOGNITION] REJECTED student_id={student_id}, "
-                f"confidence={confidence:.2f}%"
+                f"confidence={confidence:.2f}%, required={threshold:.1f}%"
             )
 
-        matched = tier in ("present", "manual_review")
         return {
             "matched": matched,
             "verified": matched,

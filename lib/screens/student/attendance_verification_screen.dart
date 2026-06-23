@@ -220,7 +220,7 @@ class _AttendanceVerificationScreenState
     });
 
     // Delegate to controller — passes the pre-captured image
-    await _attendance.captureAndVerify(
+    await _attendance.verifyFace(
       imageFile: image,
       livenessToken: _livenessToken,
     );

@@ -96,6 +96,36 @@ class AttendanceController extends GetxController {
   /// classroom UUID matches the session's classroom.
   /// FALLBACK: if deepLinkSessionId is null, fetches the active session
   /// by classroom BLE UUID or name.
+  // ─── Classroom Matches Helper ────────────────────────────
+  bool _classroomMatches(DetectedClassroom classroom, String expectedUuid, String expectedName) {
+    String clean(String s) {
+      return s.toUpperCase().replaceAll(':', '').replaceAll('-', '').replaceAll('_', '').replaceAll(' ', '');
+    }
+
+    final bleUuid = clean(classroom.deviceId);
+    final bleName = clean(classroom.name);
+    final expUuid = clean(expectedUuid);
+    final expName = clean(expectedName);
+
+    if (expUuid.isEmpty) return true;
+
+    // Check device ID matching expected UUID
+    if (bleUuid.contains(expUuid) || expUuid.contains(bleUuid)) return true;
+    
+    // Check name matching expected UUID
+    if (bleName.contains(expUuid) || expUuid.contains(bleName)) return true;
+
+    // Check name matching expected Name
+    if (expName.isNotEmpty && (bleName.contains(expName) || expName.contains(bleName))) return true;
+
+    return false;
+  }
+
+  // ─── Step 3: Select Classroom ────────────────────────────
+  /// When a deep-link session is active, validate that the detected
+  /// classroom UUID matches the session's classroom.
+  /// FALLBACK: if deepLinkSessionId is null, fetches the active session
+  /// by classroom BLE UUID or name.
   Future<void> selectClassroom(DetectedClassroom classroom) async {
     dev.log(
       '[DETECTED_CLASSROOM] selectClassroom selected: '
@@ -163,39 +193,22 @@ class AttendanceController extends GetxController {
 
     // Verify classroom matches expected deep-link UUID (either deviceId or room_name contains it)
     final expectedUuid = deepLinkClassroomUuid.value;
+    final expectedName = deepLinkSessionClassroom.value;
     dev.log(
       '[EXPECTED_CLASSROOM] Performing classroom validation: '
-      'expectedUuid=$expectedUuid, expectedName=${deepLinkSessionClassroom.value}',
+      'expectedUuid=$expectedUuid, expectedName=$expectedName',
       name: 'AttendanceController',
     );
-    if (expectedUuid.isNotEmpty) {
-      final bleUuid = classroom.deviceId.toUpperCase();
-      final bleName = classroom.name.toUpperCase();
-      final expected = expectedUuid.toUpperCase();
-      
-      final matchesDevice = bleUuid.contains(expected) || expected.contains(bleUuid);
-      final matchesName = bleName.contains(expected) || expected.contains(bleName);
-      
+    if (expectedUuid.isNotEmpty && !_classroomMatches(classroom, expectedUuid, expectedName)) {
       dev.log(
-        '[EXPECTED_CLASSROOM] Validation results: '
-        'bleUuid=$bleUuid, bleName=$bleName, expected=$expected, '
-        'matchesDevice=$matchesDevice, matchesName=$matchesName',
+        '[EXPECTED_CLASSROOM] VALIDATION FAILED: Classroom mismatch! '
+        'Wrong classroom detected. Expected: $expectedName',
         name: 'AttendanceController',
       );
-      
-      if (!matchesDevice && !matchesName) {
-        dev.log(
-          '[EXPECTED_CLASSROOM] VALIDATION FAILED: Classroom mismatch! '
-          'Wrong classroom detected. Expected: ${deepLinkSessionClassroom.value}',
-          name: 'AttendanceController',
-        );
-        errorMessage.value =
-            'Wrong classroom detected. Please go to '
-            '${deepLinkSessionClassroom.value}.';
-        result.value = AttendanceResult.failed;
-        Get.toNamed(AppConstants.routeAttendanceResult);
-        return;
-      }
+      errorMessage.value = 'Wrong classroom detected. Please go to $expectedName.';
+      result.value = AttendanceResult.failed;
+      Get.toNamed(AppConstants.routeAttendanceResult);
+      return;
     }
 
     selectedClassroom.value = classroom;
@@ -208,7 +221,7 @@ class AttendanceController extends GetxController {
   /// [imageFile]: Pre-captured image file from the verification screen.
   ///   The student has already reviewed and approved this image.
   /// [livenessToken]: Optional signed JWT from liveness verification.
-  Future<void> captureAndVerify({
+  Future<void> verifyFace({
     required File imageFile,
     String? livenessToken,
   }) async {

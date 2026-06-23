@@ -55,7 +55,7 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
     # ─── Face Recognition ──────────────────────────────────
-    FACE_MATCH_THRESHOLD: float = 85.0
+    FACE_MATCH_THRESHOLD: float = 90.0
 
     @field_validator("FACE_MATCH_THRESHOLD")
     @classmethod
