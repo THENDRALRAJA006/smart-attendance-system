@@ -13,7 +13,6 @@ import 'package:get/get.dart' hide FormData, MultipartFile;
 import '../core/constants/app_constants.dart';
 import '../core/network/api_client.dart';
 import '../core/services/ble_service.dart';
-import '../core/services/camera_service.dart';
 
 enum AttendanceStep { idle, bleScanning, bleDone, faceCapture, verifying, done }
 enum AttendanceResult { none, success, failed, outOfRange, alreadyMarked }
@@ -205,21 +204,43 @@ class AttendanceController extends GetxController {
     Get.toNamed(AppConstants.routeAttendanceVerification);
   }
 
-  // ─── Step 4: Capture & Verify Face ────────────────────────
+  // ─── Step 4: Verify Face ──────────────────────────────────
+  /// [imageFile]: Pre-captured image file from the verification screen.
+  ///   The student has already reviewed and approved this image.
   /// [livenessToken]: Optional signed JWT from liveness verification.
-  /// Pass after a successful GET /auth/liveness-challenge + POST /auth/liveness-verify.
-  Future<void> captureAndVerify({String? livenessToken}) async {
+  Future<void> captureAndVerify({
+    required File imageFile,
+    String? livenessToken,
+  }) async {
     step.value = AttendanceStep.verifying;
     isLoading.value = true;
     errorMessage.value = '';
 
     try {
-      // Capture face image
-      final imageFile = await CameraService.to.captureImage();
+      dev.log("========== FACE VERIFY DEBUG ==========");
+      dev.log("[CAMERA] Using pre-captured image: ${imageFile.path}");
+      dev.log("[SESSION] Session ID: ${deepLinkSessionId.value}");
+      dev.log("[LIVENESS] Token present: ${livenessToken != null}");
+      dev.log("[BLE] Classroom: ${selectedClassroom.value?.name}");
+      dev.log("[BLE] RSSI: ${capturedRssi.value} dBm");
+      dev.log("=======================================");
 
-      // Send to backend for face verification + attendance marking
-      final response = await _verifyAndMark(imageFile, livenessToken: livenessToken);
-      confidenceScore.value = (response['confidence'] as num? ?? 0.0).toDouble();
+      dev.log("[AWS] Sending face to Rekognition...", name: 'AttendanceController');
+
+      // Send to backend
+      final response = await _verifyAndMark(
+        imageFile,
+        livenessToken: livenessToken,
+      );
+
+      dev.log(
+        "[AWS] Response received: "
+        "match=${response['match']}, "
+        "tier=${response['tier']}, "
+        "confidence=${response['confidence']}, "
+        "attendance_id=${response['attendance_id']}",
+        name: 'AttendanceController',
+      );
 
       // v4 tier handling
       final tier = response['tier'] as String? ?? 'present';
@@ -312,14 +333,12 @@ class AttendanceController extends GetxController {
     return data;
   }
 
-  // ─── Fetch session info when deep link arrives ──────────────────
-  /// Called immediately after setDeepLinkContext to pre-fetch session metadata
-  /// (subject, classroom, BLE UUID) from the backend via /attendance/verify.
   Future<void> fetchSessionInfo(int sessionId) async {
     dev.log(
       '[FETCH] fetchSessionInfo called for session_id=$sessionId',
       name: 'AttendanceController',
     );
+    errorMessage.value = '';
     try {
       // POST /attendance/verify with rssi=0 to skip BLE check at this stage
       final formData = dio.FormData.fromMap({
@@ -348,12 +367,17 @@ class AttendanceController extends GetxController {
           'uuid=${deepLinkClassroomUuid.value}',
           name: 'AttendanceController',
         );
+
+        if (data['step'] == 'duplicate') {
+          errorMessage.value = data['message'] ?? 'Attendance already marked.';
+        }
       } else {
         dev.log(
           '[FETCH] Session verify returned not-eligible: '
           'step=${data['step']}, message=${data['message']}',
           name: 'AttendanceController',
         );
+        errorMessage.value = data['message'] ?? 'Not eligible for this session';
         // Set subject/classroom even when not eligible (so UI can display it)
         deepLinkSessionSubject.value   = data['subject_name'] ?? '';
         deepLinkSessionClassroom.value = data['classroom_name'] ?? '';
@@ -366,13 +390,14 @@ class AttendanceController extends GetxController {
         name: 'AttendanceController',
         error: e,
       );
-      // Non-critical: BLE + face still enforced; UI shows session info as empty
+      errorMessage.value = err.message;
     } catch (e) {
       dev.log(
         '[FETCH] Unexpected error: $e',
         name: 'AttendanceController',
         error: e,
       );
+      errorMessage.value = e.toString();
     }
   }
 
@@ -429,4 +454,4 @@ class AttendanceController extends GetxController {
     deepLinkClassroomUuid.value   = '';
     reset();
   }
-}
+} 

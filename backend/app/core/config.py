@@ -3,6 +3,7 @@
 # ============================================================
 
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
 
 
@@ -54,7 +55,18 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
     # ─── Face Recognition ──────────────────────────────────
-    FACE_CONFIDENCE_THRESHOLD: float = 85.0  # Recommended: 85% for real-world use
+    FACE_MATCH_THRESHOLD: float = 85.0
+
+    @field_validator("FACE_MATCH_THRESHOLD")
+    @classmethod
+    def validate_threshold(cls, v: float) -> float:
+        if v not in (80.0, 85.0, 90.0):
+            raise ValueError("FACE_MATCH_THRESHOLD must be 80.0, 85.0, or 90.0")
+        return v
+
+    @property
+    def FACE_CONFIDENCE_THRESHOLD(self) -> float:
+        return self.FACE_MATCH_THRESHOLD
 
     class Config:
         env_file = ".env"

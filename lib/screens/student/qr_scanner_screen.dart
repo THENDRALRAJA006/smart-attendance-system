@@ -3,11 +3,15 @@
 // Fallback attendance via QR code when BLE unavailable
 // ============================================================
 
+import 'dart:convert';
+import 'dart:developer' as dev;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../controllers/attendance_controller.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 
 class QrScannerScreen extends StatefulWidget {
@@ -42,28 +46,56 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     await _scanCtrl.stop();
 
     final qrToken = barcode!.rawValue!;
-    final success = await _attendance.markAttendanceViaQr(qrToken);
 
-    if (!mounted) return;
+    int? sessionId;
+    try {
+      final parts = qrToken.split('.');
+      if (parts.length == 3) {
+        final payload = parts[1];
+        final normalized = base64Url.normalize(payload);
+        final decodedStr = utf8.decode(base64Url.decode(normalized));
+        final payloadMap = json.decode(decodedStr) as Map<String, dynamic>;
+        if (payloadMap['type'] == 'qr_attendance') {
+          sessionId = payloadMap['session_id'] as int?;
+        }
+      }
+    } catch (e) {
+      dev.log('[QR_SCAN] JWT decoding failed: $e');
+    }
 
-    if (success) {
-      Get.back();
-      Get.snackbar(
-        'Attendance Marked',
-        'QR attendance recorded successfully!',
-        backgroundColor: AppTheme.success.withValues(alpha: 0.9),
-        colorText: Colors.white,
-        icon: const Icon(Icons.check_circle, color: Colors.white),
-        snackPosition: SnackPosition.TOP,
-      );
-    } else {
-      final msg = _attendance.error.value;
+    if (sessionId == null) {
+      if (!mounted) return;
       setState(() {
-        _error = msg.isNotEmpty ? msg : 'Invalid or expired QR code';
+        _error = 'Invalid QR code. Please scan a valid SmartAttend attendance QR.';
         _processing = false;
       });
       await _scanCtrl.start();
+      return;
     }
+
+    // Set attendance context
+    _attendance.setDeepLinkContext(sessionId: sessionId);
+    await _attendance.fetchSessionInfo(sessionId);
+
+    if (!mounted) return;
+
+    if (_attendance.errorMessage.value.isNotEmpty) {
+      setState(() {
+        _error = _attendance.errorMessage.value;
+        _processing = false;
+      });
+      await _scanCtrl.start();
+      return;
+    }
+
+    // Success — navigate to BLE classroom detection screen
+    Get.offNamed(
+      AppConstants.routeClassroomDetection,
+      arguments: {
+        'deep_link': true,
+        'session_id': sessionId,
+      },
+    );
   }
 
   @override

@@ -167,6 +167,13 @@ class RekognitionService:
                 "message": str,
             }
         """
+        if image_bytes is None or len(image_bytes) == 0:
+            raise ValueError("Image bytes cannot be null or empty")
+
+        logger.info("Image received")
+        logger.info(f"Image size: {len(image_bytes)} bytes")
+        logger.info("CompareFaces started")
+
         # AWS pre-filter: return all matches ≥ 75% so we can apply our own tier
         AWS_MIN_THRESHOLD = 75.0
 
@@ -245,6 +252,7 @@ class RekognitionService:
 
         # Apply tier logic in Python
         confidence = best_similarity
+        logger.info(f"Similarity score: {confidence}")
         if confidence >= threshold:
             tier = "present"
             message = f"Face matched successfully ({confidence:.1f}%)"
@@ -311,6 +319,15 @@ class RekognitionService:
 
     def compare_faces(self, source_bytes, target_bytes, threshold=80):
         """Compare two faces directly via compare_faces API."""
+        if source_bytes is None or len(source_bytes) == 0:
+            raise ValueError("Source image bytes cannot be null or empty")
+        if target_bytes is None or len(target_bytes) == 0:
+            raise ValueError("Target image bytes cannot be null or empty")
+
+        logger.info("Image received")
+        logger.info(f"Image size: {len(source_bytes)} bytes (source), {len(target_bytes)} bytes (target)")
+        logger.info("CompareFaces started")
+
         try:
             response = self.client.compare_faces(
                 SourceImage={"Bytes": source_bytes},
@@ -322,6 +339,7 @@ class RekognitionService:
 
             if matches:
                 similarity = matches[0]["Similarity"]
+                logger.info(f"Similarity score: {similarity}")
 
                 return {
                     "matched": True,
@@ -329,6 +347,7 @@ class RekognitionService:
                     "message": "Face matched successfully",
                 }
 
+            logger.info("Similarity score: 0 (no match)")
             return {
                 "matched": False,
                 "confidence": 0,
@@ -336,6 +355,7 @@ class RekognitionService:
             }
 
         except ClientError as e:
+            logger.error(f"CompareFaces failed: {e}")
             return {
                 "matched": False,
                 "confidence": 0,

@@ -106,6 +106,26 @@ async def verify_attendance(
     classroom_uuid = classroom.ble_uuid if classroom else ""
     subject_name = subject.subject_name if subject else "Unknown Subject"
 
+    # 0. Validate student registration
+    from app.models.models import StudentFace
+    registered_faces_count = db.query(StudentFace).filter(StudentFace.student_id == current_student.id).count()
+    has_rekognition_face = bool(current_student.face_id)
+
+    if registered_faces_count < 15 and not has_rekognition_face:
+        logger.warning(
+            f"[REGISTRATION_VALIDATION] Registration incomplete/missing for student={current_student.id}. "
+            f"Faces count={registered_faces_count}, Rekognition face={has_rekognition_face}"
+        )
+        return {
+            "eligible": False,
+            "step": "no_registration",
+            "message": "No registered face profile found. Please register your face first.",
+            "session_id": session_id,
+            "classroom_name": classroom_name,
+            "classroom_uuid": classroom_uuid,
+            "subject_name": subject_name
+        }
+
     # 1. Check duplicate attendance
     try:
         check_duplicate_attendance(db, current_student.id, session_id)
@@ -232,23 +252,40 @@ async def mark_attendance_endpoint(
         )
 
     # 6. Face Verification (AWS Rekognition)
-    if not current_student.face_id:
+    from app.models.models import StudentFace
+    registered_faces_count = db.query(StudentFace).filter(StudentFace.student_id == current_student.id).count()
+    has_rekognition_face = bool(current_student.face_id)
+
+    if registered_faces_count < 15 and not has_rekognition_face:
+        logger.warning(
+            f"[REGISTRATION_VALIDATION] Registration incomplete/missing for student={current_student.id}. "
+            f"Faces count={registered_faces_count}, Rekognition face={has_rekognition_face}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No registered face profile found. Please register your face first.",
         )
 
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded face image is empty or invalid.",
+        )
+
+    logger.info("Image received")
+    logger.info(f"Image size: {len(image_bytes)} bytes")
+
     logger.info(
         f"[AWS] Sending to Rekognition: student_id={current_student.id}, "
-        f"face_id={current_student.face_id}, threshold={settings.FACE_CONFIDENCE_THRESHOLD}%"
+        f"face_id={current_student.face_id}, threshold={settings.FACE_MATCH_THRESHOLD}%"
     )
 
-    image_bytes = await file.read()
     result = rekognition_service.verify_face(
         image_bytes=image_bytes,
         target_face_id=current_student.face_id,
         student_id=current_student.id,
-        threshold=settings.FACE_CONFIDENCE_THRESHOLD,
+        threshold=settings.FACE_MATCH_THRESHOLD,
     )
 
     matched = result.get("matched", False)

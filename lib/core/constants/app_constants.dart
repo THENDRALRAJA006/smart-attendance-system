@@ -5,7 +5,9 @@
 class AppConstants {
   // ─── API ────────────────────────────────────────────────
   // Production Render URL (confirmed)
-  static const String baseUrl = 'https://smart-attendance-system-2-qthq.onrender.com';
+  // For local development (Android emulator):
+  static const String baseUrl = 'http://10.0.2.2:8000';
+  // static const String baseUrl = 'https://smart-attendance-system-2-qthq.onrender.com';
 
   // For local development, use:
   // static const String baseUrl = 'http://10.0.2.2:8000'; // Android emulator
@@ -76,6 +78,7 @@ class AppConstants {
   static const String endpointLiveAttendance    = '/faculty/live-attendance';
   static const String endpointAttendanceReport  = '/faculty/attendance-report';
   static const String endpointGenerateQr       = '/faculty/generate-qr';
+  static const String endpointDownloadQr        = '/faculty/download-qr';
 
   // Admin
   static const String endpointAdminDashboard    = '/admin/dashboard';

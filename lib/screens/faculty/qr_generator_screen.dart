@@ -1,13 +1,21 @@
 // ============================================================
-// SmartAttend — QR Generator Screen (Faculty)
-// Faculty generates a session QR code for student scanning
+// SmartAttend — QR Generator Screen (Faculty) v2
+// + Download QR as PNG
+// + Fullscreen / Board Mode for projector display
+// + Share QR via system share sheet
 // ============================================================
 
+import 'package:dio/dio.dart' as dio;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 import '../../controllers/faculty_controller.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 
 class QrGeneratorScreen extends StatefulWidget {
@@ -24,6 +32,7 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
   String? _qrToken;
   DateTime? _expiresAt;
   bool _loading = false;
+  bool _downloadingPng = false;
   String? _error;
   int _selectedSessionId = 0;
 
@@ -55,6 +64,7 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
     super.dispose();
   }
 
+  // ─── Generate QR Token ──────────────────────────────────
   Future<void> _generateQr() async {
     if (_selectedSessionId == 0) {
       Get.snackbar('Select Session', 'Please select an active session first.',
@@ -87,6 +97,79 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
     }
   }
 
+  // ─── Download QR PNG ────────────────────────────────────
+  Future<void> _downloadQrPng() async {
+    if (_selectedSessionId == 0) return;
+
+    setState(() {
+      _downloadingPng = true;
+      _error = null;
+    });
+
+    try {
+      final response = await ApiClient.to.get<List<int>>(
+        '${AppConstants.endpointDownloadQr}/$_selectedSessionId',
+        options: dio.Options(
+          responseType: dio.ResponseType.bytes,
+        ),
+      );
+
+      final bytes = response.data;
+      if (bytes == null) {
+        throw Exception('Empty response data received');
+      }
+
+      // Save to temp directory then share/save
+      final dir = await getTemporaryDirectory();
+      final filename =
+          response.headers.value('content-disposition')
+              ?.split('filename=')
+              .last
+              .replaceAll('"', '') ??
+          'SmartAttend_QR_$_selectedSessionId.png';
+
+      final file = File('${dir.path}/$filename');
+      await file.writeAsBytes(bytes);
+
+      if (!mounted) return;
+
+      Get.snackbar(
+        '✅ QR Ready',
+        'Opening share sheet...',
+        backgroundColor: AppTheme.success.withValues(alpha: 0.9),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.TOP,
+        duration: const Duration(seconds: 2),
+      );
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        subject: 'SmartAttend QR Code — Session $_selectedSessionId',
+        text: 'Scan to mark attendance. Valid for 10 minutes.',
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Download failed: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _downloadingPng = false);
+    }
+  }
+
+  // ─── Open Fullscreen Board Mode ─────────────────────────
+  void _openFullscreen() {
+    if (_qrToken == null) return;
+    Get.to(
+      () => _FullscreenQrScreen(
+        qrToken: _qrToken!,
+        expiresAt: _expiresAt,
+        sessionId: _selectedSessionId,
+      ),
+      transition: Transition.fadeIn,
+    );
+  }
+
+  // ─── Timer Display ──────────────────────────────────────
   String _timeRemaining() {
     if (_expiresAt == null) return '';
     final diff = _expiresAt!.difference(DateTime.now());
@@ -121,6 +204,15 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         )),
+                    const Spacer(),
+                    // Fullscreen button (only when QR is generated)
+                    if (_qrToken != null)
+                      IconButton(
+                        tooltip: 'Fullscreen Board Mode',
+                        icon: const Icon(Icons.fullscreen_rounded,
+                            color: AppTheme.textSecondary, size: 26),
+                        onPressed: _openFullscreen,
+                      ),
                   ],
                 ),
               ),
@@ -150,7 +242,8 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                                 const Text(
                                   'No active sessions. Start a session first.',
                                   style: TextStyle(
-                                      color: AppTheme.textSecondary, fontSize: 13),
+                                      color: AppTheme.textSecondary,
+                                      fontSize: 13),
                                 )
                               else
                                 DropdownButtonFormField<int>(
@@ -165,18 +258,21 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                                       borderRadius: BorderRadius.circular(12),
                                       borderSide: BorderSide.none,
                                     ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 12),
+                                    contentPadding:
+                                        const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 12),
                                   ),
                                   hint: const Text('Choose session',
-                                      style: TextStyle(color: AppTheme.textHint)),
+                                      style: TextStyle(
+                                          color: AppTheme.textHint)),
                                   items: sessions.map((s) {
                                     return DropdownMenuItem<int>(
                                       value: s['id'] as int,
                                       child: Text(
                                         '${s['subject_name']} — ${s['classroom_name']}',
                                         style: const TextStyle(
-                                            color: AppTheme.textPrimary, fontSize: 13),
+                                            color: AppTheme.textPrimary,
+                                            fontSize: 13),
                                       ),
                                     );
                                   }).toList(),
@@ -243,7 +339,8 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                               borderRadius: BorderRadius.circular(24),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppTheme.primary.withValues(alpha: 0.4),
+                                  color:
+                                      AppTheme.primary.withValues(alpha: 0.4),
                                   blurRadius: 30,
                                   spreadRadius: 5,
                                 ),
@@ -261,7 +358,8 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
 
                         // Timer
                         StreamBuilder(
-                          stream: Stream.periodic(const Duration(seconds: 1)),
+                          stream:
+                              Stream.periodic(const Duration(seconds: 1)),
                           builder: (_, __) {
                             final remaining = _timeRemaining();
                             final expired = remaining == 'Expired';
@@ -269,27 +367,37 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 20, vertical: 10),
                               decoration: BoxDecoration(
-                                color: (expired ? AppTheme.error : AppTheme.success)
-                                    .withValues(alpha: 0.15),
+                                color: (expired
+                                            ? AppTheme.error
+                                            : AppTheme.success)
+                                        .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: (expired ? AppTheme.error : AppTheme.success)
-                                      .withValues(alpha: 0.4),
+                                  color: (expired
+                                              ? AppTheme.error
+                                              : AppTheme.success)
+                                          .withValues(alpha: 0.4),
                                 ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    expired ? Icons.timer_off : Icons.timer,
-                                    color: expired ? AppTheme.error : AppTheme.success,
+                                    expired
+                                        ? Icons.timer_off
+                                        : Icons.timer,
+                                    color: expired
+                                        ? AppTheme.error
+                                        : AppTheme.success,
                                     size: 18,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
                                     remaining,
                                     style: TextStyle(
-                                      color: expired ? AppTheme.error : AppTheme.success,
+                                      color: expired
+                                          ? AppTheme.error
+                                          : AppTheme.success,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 14,
                                     ),
@@ -298,6 +406,38 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                               ),
                             );
                           },
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // ─── Action Buttons Row ──────────────
+                        Row(
+                          children: [
+                            // Share / Download
+                            Expanded(
+                              child: _ActionButton(
+                                icon: Icons.share_rounded,
+                                label: _downloadingPng
+                                    ? 'Preparing...'
+                                    : 'Share QR',
+                                color: AppTheme.primary,
+                                isLoading: _downloadingPng,
+                                onTap: _downloadingPng
+                                    ? null
+                                    : _downloadQrPng,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Fullscreen / Board Mode
+                            Expanded(
+                              child: _ActionButton(
+                                icon: Icons.fullscreen_rounded,
+                                label: 'Board Mode',
+                                color: AppTheme.accent,
+                                onTap: _openFullscreen,
+                              ),
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 16),
@@ -321,7 +461,8 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                             color: AppTheme.error.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: AppTheme.error.withValues(alpha: 0.4)),
+                                color:
+                                    AppTheme.error.withValues(alpha: 0.4)),
                           ),
                           child: Row(
                             children: [
@@ -331,7 +472,8 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                               Expanded(
                                 child: Text(_error!,
                                     style: const TextStyle(
-                                        color: AppTheme.error, fontSize: 13)),
+                                        color: AppTheme.error,
+                                        fontSize: 13)),
                               ),
                             ],
                           ),
@@ -339,6 +481,204 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
                     ],
                   ),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Reusable Action Button ───────────────────────────────────
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback? onTap;
+  final bool isLoading;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.onTap,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        opacity: onTap == null ? 0.5 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: color),
+                    )
+                  : Icon(icon, color: color, size: 22),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Fullscreen Board Mode ────────────────────────────────────
+class _FullscreenQrScreen extends StatelessWidget {
+  final String qrToken;
+  final DateTime? expiresAt;
+  final int sessionId;
+
+  const _FullscreenQrScreen({
+    required this.qrToken,
+    required this.expiresAt,
+    required this.sessionId,
+  });
+
+  String _timeRemaining() {
+    if (expiresAt == null) return '';
+    final diff = expiresAt!.difference(DateTime.now());
+    if (diff.isNegative) return 'EXPIRED';
+    final m = diff.inMinutes;
+    final s = diff.inSeconds % 60;
+    return '${m}m ${s}s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
+        onTap: () => Get.back(),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: Colors.black,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // SmartAttend branding
+              const Text(
+                'SmartAttend',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: 4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Scan to Mark Attendance',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 14,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 40),
+
+              // Large QR
+              Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withValues(alpha: 0.4),
+                      blurRadius: 60,
+                      spreadRadius: 10,
+                    ),
+                  ],
+                ),
+                child: QrImageView(
+                  data: qrToken,
+                  version: QrVersions.auto,
+                  size: MediaQuery.of(context).size.width * 0.6,
+                  errorCorrectionLevel: QrErrorCorrectLevel.H,
+                ),
+              ),
+              const SizedBox(height: 36),
+
+              // Live countdown
+              StreamBuilder(
+                stream: Stream.periodic(const Duration(seconds: 1)),
+                builder: (_, __) {
+                  final remaining = _timeRemaining();
+                  final expired = remaining == 'EXPIRED';
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 28, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: (expired ? Colors.red : AppTheme.primary)
+                          .withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                          color:
+                              (expired ? Colors.red : AppTheme.primary)
+                                  .withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          expired ? Icons.timer_off : Icons.timer_rounded,
+                          color: expired
+                              ? Colors.redAccent
+                              : AppTheme.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          expired ? 'QR EXPIRED' : 'Expires in $remaining',
+                          style: TextStyle(
+                            color: expired
+                                ? Colors.redAccent
+                                : Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 24),
+              const Text(
+                'Tap anywhere to exit',
+                style: TextStyle(
+                    color: Colors.white24,
+                    fontSize: 12,
+                    letterSpacing: 1),
               ),
             ],
           ),

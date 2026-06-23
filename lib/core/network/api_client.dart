@@ -12,8 +12,14 @@ class ApiClient {
   static ApiClient get to => getx.Get.find();
 
   late final Dio _dio;
+  
+  String get baseUrl => AppConstants.baseUrl;
+  
+  String? _authTokenCache;
+  String? get authToken => _authTokenCache;
 
   ApiClient() {
+    _initTokenCache();
     _dio = Dio(
       BaseOptions(
         baseUrl: AppConstants.baseUrl,
@@ -28,6 +34,7 @@ class ApiClient {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final token = await StorageService.to.getToken();
+          _authTokenCache = token;
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -82,6 +89,13 @@ class ApiClient {
     );
   }
 
+  // ─── Init Token Cache ─────────────────────────────────────
+  Future<void> _initTokenCache() async {
+    try {
+      _authTokenCache = await StorageService.to.getToken();
+    } catch (_) {}
+  }
+
   // ─── Token Refresh ───────────────────────────────────────
   Future<bool> _tryRefreshToken() async {
     try {
@@ -98,6 +112,7 @@ class ApiClient {
       final data = response.data as Map<String, dynamic>;
       await StorageService.to.saveToken(data['access_token']);
       await StorageService.to.saveRefreshToken(data['refresh_token']);
+      _authTokenCache = data['access_token'];
       return true;
     } catch (e) {
       return false;
@@ -108,8 +123,13 @@ class ApiClient {
   Future<Response<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Options? options,
   }) async {
-    return _dio.get<T>(path, queryParameters: queryParameters);
+    return _dio.get<T>(
+      path,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   // ─── POST ────────────────────────────────────────────────
@@ -117,19 +137,26 @@ class ApiClient {
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
+    Options? options,
   }) async {
-    return _dio.post<T>(path, data: data, queryParameters: queryParameters);
+    return _dio.post<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   // ─── POST MULTIPART ──────────────────────────────────────
   Future<Response<T>> postMultipart<T>(
     String path,
-    FormData formData,
-  ) async {
+    FormData formData, {
+    Options? options,
+  }) async {
     return _dio.post<T>(
       path,
       data: formData,
-      options: Options(contentType: 'multipart/form-data'),
+      options: options ?? Options(contentType: 'multipart/form-data'),
     );
   }
 
@@ -137,13 +164,28 @@ class ApiClient {
   Future<Response<T>> put<T>(
     String path, {
     dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
   }) async {
-    return _dio.put<T>(path, data: data);
+    return _dio.put<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   // ─── DELETE ──────────────────────────────────────────────
-  Future<Response<T>> delete<T>(String path) async {
-    return _dio.delete<T>(path);
+  Future<Response<T>> delete<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    return _dio.delete<T>(
+      path,
+      queryParameters: queryParameters,
+      options: options,
+    );
   }
 
   // ─── DOWNLOAD FILE ────────────────────────────────────────

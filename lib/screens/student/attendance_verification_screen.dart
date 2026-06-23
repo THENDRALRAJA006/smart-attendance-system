@@ -1,42 +1,47 @@
 // ============================================================
-// SmartAttend — Attendance Verification Screen (v4)
-// BLE → Liveness Challenge → Face Verification
+// SmartAttend — Attendance Face Verification Screen (v5)
+// Manual Capture → Preview → Verify Attendance
 //
-// v4 Flow:
-//   1. Confirm BLE classroom info (already verified by BLE service)
-//   2. Fetch random liveness challenge (BLINK/SMILE/TURN_LEFT/TURN_RIGHT)
-//   3. Student performs challenge while 3 frames auto-captured
-//   4. Backend verifies frames → anti-spoofing passed
-//   5. Final face selfie captured + sent to Rekognition
-//   6. Confidence tier returned (present / manual_review / rejected)
-//   7. Success or retry screen
+// Flow:
+//   1. Camera preview (live)
+//   2. Student taps "Capture Selfie"
+//   3. Image preview shown (Retake / Verify Attendance)
+//   4. Student taps "Verify Attendance"
+//   5. Optional liveness runs (non-blocking)
+//   6. AWS Rekognition CompareFaces
+//   7. Navigate to result screen
 // ============================================================
 
 import 'dart:async';
 import 'dart:developer' as dev;
+import 'dart:io';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
 import '../../controllers/attendance_controller.dart';
 import '../../controllers/auth_controller.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/services/camera_service.dart';
 import '../../core/theme/app_theme.dart';
-import '../../widgets/glassmorphism_card.dart';
 import '../../widgets/gradient_button.dart';
-import '../../widgets/signal_strength_widget.dart';
 
-// ─── Liveness Step Enum ──────────────────────────────────────
-enum _LivenessStep {
-  idle,          // Waiting to start
-  fetching,      // Fetching challenge from server
-  challenged,    // Challenge issued, waiting for student to perform it
-  capturing,     // Auto-capturing 3 frames
-  verifying,     // Sending frames to backend
-  passed,        // Liveness verified
-  failed,        // Liveness failed
+// ─── UI State Machine ─────────────────────────────────────────
+enum _VerifyState {
+  /// Live camera preview — waiting for student to capture
+  cameraReady,
+
+  /// Image captured — showing preview (retake / verify)
+  imageCaptured,
+
+  /// Optional liveness challenge running (non-blocking)
+  livenessRunning,
+
+  /// Sending to AWS Rekognition + marking attendance
+  verifying,
 }
 
-// ─── Screen ───────────────────────────────────────────────────
 class AttendanceVerificationScreen extends StatefulWidget {
   const AttendanceVerificationScreen({super.key});
 
@@ -47,184 +52,222 @@ class AttendanceVerificationScreen extends StatefulWidget {
 
 class _AttendanceVerificationScreenState
     extends State<AttendanceVerificationScreen>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
+  // ─── Services ──────────────────────────────────────────────
   final CameraService _camera = Get.find();
-  final AttendanceController _attendance = Get.find();
   final AuthController _auth = Get.find();
+  final AttendanceController _attendance = Get.find();
 
-  _LivenessStep _livenessStep = _LivenessStep.idle;
-  int _captureCountdown = 3;
-  Timer? _captureTimer;
-  List<String> _capturedFramePaths = [];
-  String? _livenessError;
+  // ─── State ─────────────────────────────────────────────────
+  _VerifyState _state = _VerifyState.cameraReady;
+  File? _capturedImage;
+  String? _errorMessage;
+  String _statusMessage = 'Initializing camera...';
 
+  // ─── Liveness (optional) ───────────────────────────────────
+  bool _livenessVerified = false;
+  String? _livenessToken;
+
+  // ─── Animation ─────────────────────────────────────────────
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
 
+  // ─── Lifecycle ─────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
-    _initCamera();
     _initAnimations();
-  }
-
-  Future<void> _initCamera() async {
-    await _camera.initialize();
-    if (mounted) setState(() {});
+    _initCamera();
   }
 
   void _initAnimations() {
     _pulseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.97, end: 1.03)
-        .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    _pulseAnim = Tween<double>(begin: 0.97, end: 1.03).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      await _camera.initialize();
+      if (!mounted) return;
+      setState(() {
+        _state = _VerifyState.cameraReady;
+        _statusMessage = 'Position your face in the oval and tap Capture';
+      });
+      dev.log('[CAMERA] Initialized successfully', name: 'VerifyScreen');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Failed to initialize camera: $e';
+      });
+      dev.log('[CAMERA] Init error: $e', name: 'VerifyScreen');
+    }
   }
 
   @override
   void dispose() {
-    _captureTimer?.cancel();
     _pulseCtrl.dispose();
     super.dispose();
   }
 
-  // ─── Challenge Icon Mapping ───────────────────────────────
-  IconData _challengeIcon(String challenge) {
-    switch (challenge.toUpperCase()) {
-      case 'BLINK':
-        return Icons.remove_red_eye_outlined;
-      case 'SMILE':
-        return Icons.sentiment_very_satisfied_outlined;
-      case 'TURN_LEFT':
-        return Icons.arrow_back_rounded;
-      case 'TURN_RIGHT':
-        return Icons.arrow_forward_rounded;
-      default:
-        return Icons.face_outlined;
-    }
-  }
-
-  // ─── Step 1: Fetch Liveness Challenge ────────────────────
-  Future<void> _startLivenessChallenge() async {
-    if (!mounted) return;
+  // ─── Step 1: Capture Selfie ───────────────────────────────
+  Future<void> _captureImage() async {
+    dev.log('[CAMERA] Capturing selfie...', name: 'VerifyScreen');
     setState(() {
-      _livenessStep = _LivenessStep.fetching;
-      _livenessError = null;
-      _capturedFramePaths = [];
+      _errorMessage = null;
+      _statusMessage = 'Capturing...';
     });
 
-    final ok = await _auth.fetchLivenessChallenge();
-    if (!mounted) return;
+    try {
+      final file = await _camera.captureImage();
+      dev.log('[CAMERA] Captured: ${file.path}', name: 'VerifyScreen');
 
-    if (ok) {
-      setState(() => _livenessStep = _LivenessStep.challenged);
-    } else {
+      if (!mounted) return;
       setState(() {
-        _livenessStep = _LivenessStep.failed;
-        _livenessError = _auth.errorMessage.value.isNotEmpty
-            ? _auth.errorMessage.value
-            : 'Failed to fetch challenge. Please try again.';
+        _capturedImage = file;
+        _state = _VerifyState.imageCaptured;
+        _statusMessage = 'Review your photo';
+      });
+    } catch (e) {
+      dev.log('[CAMERA] Capture failed: $e', name: 'VerifyScreen');
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Capture failed: $e. Please try again.';
       });
     }
   }
 
-  // ─── Step 2: Auto-capture 3 frames ───────────────────────
-  Future<void> _startFrameCapture() async {
-    if (_livenessStep != _LivenessStep.challenged) return;
-    if (!_camera.isInitialized.value) return;
-
+  // ─── Step 1b: Retake ──────────────────────────────────────
+  void _retake() {
+    dev.log('[CAMERA] Retaking photo', name: 'VerifyScreen');
     setState(() {
-      _livenessStep = _LivenessStep.capturing;
-      _captureCountdown = 3;
-      _capturedFramePaths = [];
+      _capturedImage = null;
+      _state = _VerifyState.cameraReady;
+      _errorMessage = null;
+      _livenessVerified = false;
+      _livenessToken = null;
+      _statusMessage = 'Position your face in the oval and tap Capture';
     });
-
-    // Capture a frame every 800ms for 2.4s total
-    for (int i = 0; i < 3; i++) {
-      if (!mounted) return;
-      setState(() => _captureCountdown = 3 - i);
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      try {
-        final file = await _camera.captureImage();
-        _capturedFramePaths.add(file.path);
-      } catch (_) {
-        // Continue even if one frame fails
-      }
-    }
-
-    if (!mounted) return;
-    await _verifyLiveness();
   }
 
-  // ─── Step 3: Verify frames with backend ──────────────────
-  Future<void> _verifyLiveness() async {
-    setState(() => _livenessStep = _LivenessStep.verifying);
+  // ─── Step 2: Optional Liveness ───────────────────────────
+  /// Liveness is non-blocking: if it fails, we proceed with liveness_verified=false.
+  Future<void> _runOptionalLiveness() async {
+    dev.log('[LIVENESS] Fetching challenge...', name: 'VerifyScreen');
+    setState(() {
+      _state = _VerifyState.livenessRunning;
+      _statusMessage = 'Running optional liveness check...';
+    });
 
-    if (_capturedFramePaths.isEmpty) {
+    try {
+      final challengeSuccess = await _auth.fetchLivenessChallenge();
+      if (!mounted) return;
+
+      if (!challengeSuccess) {
+        dev.log('[LIVENESS] Challenge fetch failed — proceeding without liveness',
+            name: 'VerifyScreen');
+        _submitVerification();
+        return;
+      }
+
+      dev.log(
+          '[LIVENESS] Challenge: ${_auth.livenessChallenge.value}',
+          name: 'VerifyScreen');
+
+      // Capture 3 frames for liveness (uses the already initialized camera)
+      final List<String> framePaths = [];
+      for (int i = 0; i < 3; i++) {
+        if (!mounted) break;
+        await Future.delayed(const Duration(milliseconds: 700));
+        try {
+          final frame = await _camera.captureImage();
+          framePaths.add(frame.path);
+          dev.log('[LIVENESS] Frame ${i + 1} captured', name: 'VerifyScreen');
+        } catch (e) {
+          dev.log('[LIVENESS] Frame ${i + 1} capture error: $e',
+              name: 'VerifyScreen');
+        }
+      }
+
+      if (!mounted) return;
+
+      // Verify liveness frames — non-blocking
+      if (framePaths.isNotEmpty) {
+        final result = await _auth.verifyLiveness(framePaths);
+        if (!mounted) return;
+        if (result != null && result['passed'] == true) {
+          _livenessVerified = true;
+          _livenessToken = _auth.liveChallengeToken.value;
+          dev.log('[LIVENESS] Passed ✅', name: 'VerifyScreen');
+        } else {
+          dev.log('[LIVENESS] Failed — proceeding without liveness token',
+              name: 'VerifyScreen');
+        }
+      }
+    } catch (e) {
+      dev.log('[LIVENESS] Unexpected error: $e — proceeding', name: 'VerifyScreen');
+    }
+
+    // Always proceed to face verification regardless of liveness result
+    _submitVerification();
+  }
+
+  // ─── Step 3: Submit Face Verification ────────────────────
+  Future<void> _submitVerification() async {
+    final image = _capturedImage;
+    if (image == null) {
       setState(() {
-        _livenessStep = _LivenessStep.failed;
-        _livenessError = 'No frames captured. Please try again.';
+        _errorMessage = 'No image captured. Please take a selfie first.';
+        _state = _VerifyState.cameraReady;
       });
       return;
     }
 
-    final result = await _auth.verifyLiveness(_capturedFramePaths);
-    if (!mounted) return;
-
     dev.log(
-      '[LIVENESS_RESULT] Liveness verification response received: passed=${result?['passed']}, '
-      'challengeToken=${_auth.liveChallengeToken.value.isNotEmpty ? "JWT_present" : "absent"}',
-      name: 'AttendanceVerificationScreen',
-    );
+        '[AWS] Sending to Rekognition — image=${image.path}, '
+        'session=${_attendance.deepLinkSessionId.value}, '
+        'rssi=${_attendance.capturedRssi.value}, '
+        'liveness_verified=$_livenessVerified',
+        name: 'VerifyScreen');
 
-    if (result != null && result['passed'] == true) {
-      setState(() => _livenessStep = _LivenessStep.passed);
-    } else {
-      setState(() {
-        _livenessStep = _LivenessStep.failed;
-        _livenessError = (result?['message'] as String?) ??
-            (_auth.errorMessage.value.isNotEmpty
-                ? _auth.errorMessage.value
-                : 'Liveness check failed. Please try again.');
-      });
-    }
-  }
+    if (!mounted) return;
+    setState(() {
+      _state = _VerifyState.verifying;
+      _statusMessage = 'Verifying face & marking attendance...';
+    });
 
-  // ─── Step 4: Capture face + mark attendance ───────────────
-  Future<void> _captureAndVerifyFace() async {
-    // Pass liveness token along with face capture
+    // Delegate to controller — passes the pre-captured image
     await _attendance.captureAndVerify(
-      livenessToken: _auth.liveChallengeToken.value,
+      imageFile: image,
+      livenessToken: _livenessToken,
     );
+    // Controller handles navigation to result screen
   }
 
-  // ─── Build ───────────────────────────────────────────────
+  // ─── Triggered by "Verify Attendance" button ─────────────
+  Future<void> _onVerifyPressed() async {
+    if (_capturedImage == null) return;
+    // Run optional liveness then submit
+    await _runOptionalLiveness();
+  }
+
+  // ─── Build ──────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final classroom = _attendance.selectedClassroom.value;
-
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
         child: SafeArea(
           child: Column(
             children: [
-              // App Bar
-              _buildAppBar(),
-
-              // Classroom strip
-              if (classroom != null) _buildClassroomStrip(classroom),
-
-              // Camera preview
-              Expanded(child: _buildCameraSection()),
-
-              // Step indicator
-              _buildStepIndicator(),
-
-              // Action area
-              _buildActionArea(),
+              _buildHeader(),
+              Expanded(child: _buildCameraArea()),
+              _buildStatusCard(),
+              _buildActionBar(),
             ],
           ),
         ),
@@ -232,171 +275,179 @@ class _AttendanceVerificationScreenState
     );
   }
 
-  Widget _buildAppBar() {
+  // ─── Header ──────────────────────────────────────────────
+  Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 24, 0),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded,
                 color: AppTheme.textPrimary, size: 20),
-            onPressed: () => Get.back(),
+            onPressed: _state == _VerifyState.verifying
+                ? null
+                : () => Get.back(),
           ),
-          Expanded(
-            child: Text(
-              _livenessStep == _LivenessStep.passed
-                  ? 'Face Verification'
-                  : 'Liveness Check',
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(width: 40),
+          Obx(() => Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Face Verification',
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (_attendance.deepLinkSessionSubject.value.isNotEmpty)
+                    Text(
+                      _attendance.deepLinkSessionSubject.value,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              )),
+          const SizedBox(width: 48),
         ],
       ),
     );
   }
 
-  Widget _buildClassroomStrip(dynamic classroom) {
+  // ─── Camera / Preview Area ────────────────────────────────
+  Widget _buildCameraArea() {
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: GlassmorphismCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            const Icon(Icons.meeting_room_rounded,
-                color: AppTheme.primary, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    classroom.name.toString().replaceAll('_', ' '),
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      SignalIcon(rssi: classroom.rssi as int),
-                      const SizedBox(width: 5),
-                      Text(
-                        '${classroom.rssi} dBm',
-                        style: const TextStyle(
-                            color: AppTheme.textSecondary, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppTheme.success.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                '✓ In Range',
-                style: TextStyle(
-                  color: AppTheme.success,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCameraSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Obx(() {
-        if (!_camera.isInitialized.value) {
+        final isCameraReady = _camera.isInitialized.value;
+
+        if (!isCameraReady && _capturedImage == null) {
           return const Center(
-            child: CircularProgressIndicator(color: AppTheme.primary),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: AppTheme.primary),
+                SizedBox(height: 16),
+                Text(
+                  'Starting camera...',
+                  style: TextStyle(color: AppTheme.textSecondary),
+                ),
+              ],
+            ),
           );
         }
 
-        // Show challenge overlay or camera
         return Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(28),
             border: Border.all(
-              color: _livenessStep == _LivenessStep.passed
-                  ? AppTheme.success
-                  : _livenessStep == _LivenessStep.failed
-                      ? AppTheme.error
-                      : AppTheme.primary.withValues(alpha: 0.5),
+              color: _borderColor,
               width: 2.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: _borderColor.withValues(alpha: 0.2),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(26),
             child: Stack(
+              fit: StackFit.expand,
               children: [
-                // Camera preview
-                Positioned.fill(child: CameraPreview(_camera.controller!)),
+                // ── Camera or Preview ──────────────────────
+                if (_capturedImage != null)
+                  Image.file(_capturedImage!, fit: BoxFit.cover)
+                else if (_camera.controller != null)
+                  CameraPreview(_camera.controller!)
+                else
+                  Container(color: Colors.black),
 
-                // Oval frame
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _OvalPainter(
-                      color: _livenessStep == _LivenessStep.passed
-                          ? AppTheme.success
-                          : AppTheme.primary,
+                // ── Face oval mask ──────────────────────────
+                if (_capturedImage == null)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _FaceMaskPainter(color: _borderColor),
                     ),
                   ),
-                ),
 
-                // Challenge overlay (shown during challenged/capturing)
-                if (_livenessStep == _LivenessStep.challenged ||
-                    _livenessStep == _LivenessStep.capturing)
-                  _buildChallengeOverlay(),
+                // ── Captured label ─────────────────────────
+                if (_capturedImage != null &&
+                    _state == _VerifyState.imageCaptured)
+                  Positioned(
+                    top: 16,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.success.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle_rounded,
+                                color: Colors.white, size: 16),
+                            SizedBox(width: 6),
+                            Text(
+                              'Photo Captured',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
-                // Verifying overlay
-                if (_livenessStep == _LivenessStep.verifying)
+                // ── Verifying overlay ──────────────────────
+                if (_state == _VerifyState.verifying ||
+                    _state == _VerifyState.livenessRunning)
                   _buildVerifyingOverlay(),
 
-                // Success badge
-                if (_livenessStep == _LivenessStep.passed)
-                  _buildLivenessPassedBadge(),
-
-                // AWS badge
+                // ── AWS badge ─────────────────────────────
                 Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.cloud_outlined,
-                            color: Colors.white, size: 12),
-                        SizedBox(width: 4),
-                        Text(
-                          'AWS Rekognition',
-                          style: TextStyle(
-                            color: Colors.white, fontSize: 10,
-                            fontWeight: FontWeight.w500,
+                  bottom: 14,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_outline_rounded,
+                              color: AppTheme.accent, size: 12),
+                          SizedBox(width: 5),
+                          Text(
+                            'AWS REKOGNITION PROTECTED',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.1,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -408,86 +459,44 @@ class _AttendanceVerificationScreenState
     );
   }
 
-  Widget _buildChallengeOverlay() {
-    final challenge = _auth.livenessChallenge.value;
-    final instruction = _auth.livenessInstruction.value;
-
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.black.withValues(alpha: 0.75),
-              Colors.transparent,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Column(
-          children: [
-            AnimatedBuilder(
-              animation: _pulseAnim,
-              builder: (ctx, _) => Transform.scale(
-                scale: _pulseAnim.value,
-                child: Icon(
-                  _challengeIcon(challenge),
-                  color: AppTheme.primary,
-                  size: 40,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              instruction,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (_livenessStep == _LivenessStep.capturing)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  'Capturing frame $_captureCountdown/3...',
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+  Color get _borderColor {
+    switch (_state) {
+      case _VerifyState.imageCaptured:
+        return AppTheme.success;
+      case _VerifyState.verifying:
+      case _VerifyState.livenessRunning:
+        return AppTheme.accent;
+      default:
+        return AppTheme.primary;
+    }
   }
 
   Widget _buildVerifyingOverlay() {
+    final label = _state == _VerifyState.livenessRunning
+        ? 'Running liveness check...'
+        : 'Verifying with AWS Rekognition...';
     return Container(
-      color: Colors.black.withValues(alpha: 0.55),
-      child: const Center(
+      color: Colors.black.withValues(alpha: 0.72),
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: CircularProgressIndicator(
-                  color: AppTheme.primary, strokeWidth: 3),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Verifying liveness...',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+            const CircularProgressIndicator(
+                color: AppTheme.accent, strokeWidth: 3),
+            const SizedBox(height: 20),
+            const Icon(Icons.face_retouching_natural_rounded,
+                color: AppTheme.textSecondary, size: 36),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
           ],
@@ -496,237 +505,287 @@ class _AttendanceVerificationScreenState
     );
   }
 
-  Widget _buildLivenessPassedBadge() {
-    return Positioned(
-      top: 16,
-      right: 16,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppTheme.success.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(20),
+  // ─── Status Card ─────────────────────────────────────────
+  Widget _buildStatusCard() {
+    IconData icon;
+    Color iconColor;
+    String title;
+    String body;
+
+    if (_errorMessage != null) {
+      icon = Icons.error_outline_rounded;
+      iconColor = AppTheme.error;
+      title = 'Error';
+      body = _errorMessage!;
+    } else {
+      switch (_state) {
+        case _VerifyState.cameraReady:
+          icon = Icons.camera_alt_rounded;
+          iconColor = AppTheme.primary;
+          title = 'Ready to Capture';
+          body = 'Centre your face inside the oval. Make sure you have good lighting.';
+          break;
+        case _VerifyState.imageCaptured:
+          icon = Icons.preview_rounded;
+          iconColor = AppTheme.success;
+          title = 'Review Your Photo';
+          body = 'If the photo is clear, tap "Verify Attendance". Otherwise tap Retake.';
+          break;
+        case _VerifyState.livenessRunning:
+          icon = Icons.security_rounded;
+          iconColor = AppTheme.accent;
+          title = 'Anti-Spoof Check';
+          body = 'Running liveness verification. Please look at the camera.';
+          break;
+        case _VerifyState.verifying:
+          icon = Icons.cloud_upload_rounded;
+          iconColor = AppTheme.accent;
+          title = 'Submitting';
+          body = 'Sending to AWS Rekognition for face matching...';
+          break;
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        child: Container(
+          key: ValueKey(_state.name + (_errorMessage ?? '')),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.bgCard.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(20),
+            border:
+                Border.all(color: iconColor.withValues(alpha: 0.25), width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      body,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
+      ),
+    );
+  }
+
+  // ─── Action Bar ──────────────────────────────────────────
+  Widget _buildActionBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        child: _buildActionContent(),
+      ),
+    );
+  }
+
+  Widget _buildActionContent() {
+    // Blocking states — no buttons
+    if (_state == _VerifyState.verifying ||
+        _state == _VerifyState.livenessRunning) {
+      return const SizedBox(
+        key: ValueKey('loading'),
+        height: 54,
+        child: Center(
+          child: Text(
+            'Please wait...',
+            style: TextStyle(color: AppTheme.textHint, fontSize: 13),
+          ),
+        ),
+      );
+    }
+
+    // After image captured — show Retake + Verify
+    if (_state == _VerifyState.imageCaptured) {
+      return Column(
+        key: const ValueKey('captured'),
+        children: [
+          GradientButton(
+            text: 'Verify Attendance',
+            icon: Icons.verified_user_rounded,
+            onPressed: _onVerifyPressed,
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _retake,
+            icon: const Icon(Icons.refresh_rounded,
+                size: 18, color: AppTheme.textPrimary),
+            label: const Text('Retake Photo',
+                style: TextStyle(
+                    color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Camera ready — show capture button (or error retry)
+    return Column(
+      key: const ValueKey('camera'),
+      children: [
+        if (_errorMessage != null) ...[
+          OutlinedButton.icon(
+            onPressed: () {
+              setState(() => _errorMessage = null);
+              _initCamera();
+            },
+            icon: const Icon(Icons.refresh_rounded,
+                size: 18, color: AppTheme.textPrimary),
+            label: const Text('Retry Camera',
+                style: TextStyle(
+                    color: AppTheme.textPrimary, fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+              side: BorderSide(color: AppTheme.error.withValues(alpha: 0.4)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Obx(() => GradientButton(
+              text: _camera.isInitialized.value
+                  ? 'Capture Selfie'
+                  : 'Starting Camera...',
+              icon: Icons.camera_alt_rounded,
+              isLoading: !_camera.isInitialized.value,
+              onPressed:
+                  _camera.isInitialized.value ? _captureImage : null,
+            )),
+        const SizedBox(height: 8),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.verified_user_rounded, color: Colors.white, size: 14),
+            Icon(Icons.lightbulb_outline_rounded,
+                color: AppTheme.warning, size: 13),
             SizedBox(width: 5),
             Text(
-              'Liveness OK',
+              'Ensure good lighting and face the camera directly.',
               style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
+                color: AppTheme.textHint,
+                fontSize: 11,
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ─── Step Indicator ───────────────────────────────────────
-  Widget _buildStepIndicator() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _StepDot(
-            icon: Icons.bluetooth,
-            label: 'BLE',
-            isDone: true,
-          ),
-          _StepConnector(isDone: true),
-          _StepDot(
-            icon: Icons.security_rounded,
-            label: 'Liveness',
-            isDone: _livenessStep == _LivenessStep.passed,
-            isActive: _livenessStep != _LivenessStep.passed &&
-                _livenessStep != _LivenessStep.idle,
-          ),
-          _StepConnector(isDone: _livenessStep == _LivenessStep.passed),
-          _StepDot(
-            icon: Icons.face_retouching_natural_rounded,
-            label: 'Face',
-            isActive: _livenessStep == _LivenessStep.passed,
-          ),
-          _StepConnector(isDone: false),
-          _StepDot(
-            icon: Icons.check_circle_outline,
-            label: 'Done',
-            isDone: false,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── Action Area ──────────────────────────────────────────
-  Widget _buildActionArea() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: Column(
-        children: [
-          // Error message
-          if (_livenessError != null && _livenessStep == _LivenessStep.failed)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppTheme.error.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.error_outline,
-                      color: AppTheme.error, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _livenessError!,
-                      style: const TextStyle(
-                          color: AppTheme.error, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Action buttons
-          if (_livenessStep == _LivenessStep.idle)
-            GradientButton(
-              text: 'Start Liveness Check',
-              icon: Icons.security_rounded,
-              onPressed: _startLivenessChallenge,
-            )
-          else if (_livenessStep == _LivenessStep.fetching)
-            const GradientButton(
-              text: 'Fetching challenge...',
-              isLoading: true,
-            )
-          else if (_livenessStep == _LivenessStep.challenged)
-            GradientButton(
-              text: 'I\'m Ready — Start Capture',
-              icon: Icons.camera_alt_rounded,
-              onPressed: _startFrameCapture,
-            )
-          else if (_livenessStep == _LivenessStep.capturing)
-            const GradientButton(
-              text: 'Capturing frames...',
-              isLoading: true,
-            )
-          else if (_livenessStep == _LivenessStep.verifying)
-            const GradientButton(
-              text: 'Verifying liveness...',
-              isLoading: true,
-            )
-          else if (_livenessStep == _LivenessStep.failed)
-            GradientButton(
-              text: 'Try Again',
-              icon: Icons.refresh_rounded,
-              onPressed: _startLivenessChallenge,
-            )
-          else if (_livenessStep == _LivenessStep.passed)
-            Obx(() => GradientButton(
-              text: 'Capture & Verify Face',
-              icon: Icons.face_retouching_natural_rounded,
-              isLoading: _attendance.isLoading.value,
-              onPressed: _attendance.isLoading.value
-                  ? null
-                  : _captureAndVerifyFace,
-            )),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Oval Frame Painter ───────────────────────────────────────
-class _OvalPainter extends CustomPainter {
-  final Color color;
-  const _OvalPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.5)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final rect = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height / 2),
-      width: size.width * 0.6,
-      height: size.height * 0.7,
-    );
-    canvas.drawOval(rect, paint);
-  }
-
-  @override
-  bool shouldRepaint(_OvalPainter old) => old.color != color;
-}
-
-// ─── Step Dot ────────────────────────────────────────────────
-class _StepDot extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isDone;
-  final bool isActive;
-
-  const _StepDot({
-    required this.icon,
-    required this.label,
-    this.isDone = false,
-    this.isActive = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isDone
-        ? AppTheme.success
-        : isActive
-            ? AppTheme.primary
-            : AppTheme.textHint;
-
-    return Column(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            shape: BoxShape.circle,
-            border: Border.all(color: color, width: 1.5),
-          ),
-          child: Icon(
-            isDone ? Icons.check : icon,
-            color: color,
-            size: 18,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 11)),
       ],
     );
   }
 }
 
-// ─── Step Connector ──────────────────────────────────────────
-class _StepConnector extends StatelessWidget {
-  final bool isDone;
-  const _StepConnector({required this.isDone});
+// ─── Custom Oval Face Mask Painter ──────────────────────────
+class _FaceMaskPainter extends CustomPainter {
+  final Color color;
+  const _FaceMaskPainter({required this.color});
 
   @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        height: 1.5,
-        margin: const EdgeInsets.only(bottom: 20),
-        color: isDone
-            ? AppTheme.success.withValues(alpha: 0.5)
-            : AppTheme.textHint.withValues(alpha: 0.2),
-      ),
+  void paint(Canvas canvas, Size size) {
+    final backgroundPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.60);
+
+    final ovalRect = Rect.fromCenter(
+      center: Offset(size.width / 2, size.height * 0.46),
+      width: size.width * 0.62,
+      height: size.height * 0.64,
+    );
+
+    final ovalPath = Path()..addOval(ovalRect);
+    final fullRect =
+        Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final exterior =
+        Path.combine(PathOperation.difference, fullRect, ovalPath);
+    canvas.drawPath(exterior, backgroundPaint);
+
+    // Oval border
+    canvas.drawOval(
+      ovalRect,
+      Paint()
+        ..color = color.withValues(alpha: 0.85)
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Corner crop marks
+    final cropPaint = Paint()
+      ..color = color
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    const l = 22.0;
+    // Top-Left
+    canvas.drawPath(
+      Path()
+        ..moveTo(ovalRect.left, ovalRect.top + l)
+        ..lineTo(ovalRect.left, ovalRect.top)
+        ..lineTo(ovalRect.left + l, ovalRect.top),
+      cropPaint,
+    );
+    // Top-Right
+    canvas.drawPath(
+      Path()
+        ..moveTo(ovalRect.right - l, ovalRect.top)
+        ..lineTo(ovalRect.right, ovalRect.top)
+        ..lineTo(ovalRect.right, ovalRect.top + l),
+      cropPaint,
+    );
+    // Bottom-Left
+    canvas.drawPath(
+      Path()
+        ..moveTo(ovalRect.left, ovalRect.bottom - l)
+        ..lineTo(ovalRect.left, ovalRect.bottom)
+        ..lineTo(ovalRect.left + l, ovalRect.bottom),
+      cropPaint,
+    );
+    // Bottom-Right
+    canvas.drawPath(
+      Path()
+        ..moveTo(ovalRect.right - l, ovalRect.bottom)
+        ..lineTo(ovalRect.right, ovalRect.bottom)
+        ..lineTo(ovalRect.right, ovalRect.bottom - l),
+      cropPaint,
     );
   }
+
+  @override
+  bool shouldRepaint(_FaceMaskPainter old) => old.color != color;
 }
