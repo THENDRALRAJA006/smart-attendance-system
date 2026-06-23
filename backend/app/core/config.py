@@ -54,7 +54,7 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
     # ─── Face Recognition ──────────────────────────────────
-    FACE_CONFIDENCE_THRESHOLD: float = 90.0
+    FACE_CONFIDENCE_THRESHOLD: float = 85.0  # Recommended: 85% for real-world use
 
     class Config:
         env_file = ".env"

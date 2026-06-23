@@ -3,13 +3,20 @@
 # Dashboard, session management, attendance link, reports, exports
 # ============================================================
 
+import io
 import logging
 import urllib.parse
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import literal_column
 from sqlalchemy.orm import Session
+
+try:
+    import qrcode
+    _QR_AVAILABLE = True
+except ImportError:
+    _QR_AVAILABLE = False
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_faculty
@@ -677,3 +684,106 @@ async def generate_qr_token(
         "valid_for_seconds": 600,
     }
 
+
+# ─── GET /faculty/download-qr/{session_id} ───────────────────
+
+@router.get("/download-qr/{session_id}")
+async def download_qr_png(
+    session_id: int,
+    current_faculty: Faculty = Depends(get_current_faculty),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate and return a QR code PNG for the given session.
+
+    The QR encodes a signed JWT attendance token (10-minute validity).
+    Used by:
+      - Faculty Dashboard "Download QR" button → saves to device
+      - "Fullscreen / Board Mode" → displays QR on projector
+      - "Share QR" → system share sheet
+
+    Requires: qrcode[pil] in requirements.txt
+    """
+    if not _QR_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "QR PNG generation not available. "
+                "Install: pip install 'qrcode[pil]'"
+            ),
+        )
+
+    from jose import jwt as jose_jwt
+    from datetime import datetime, timedelta
+
+    # Validate session ownership
+    session = db.query(AttendanceSession).filter(
+        AttendanceSession.id == session_id,
+        AttendanceSession.faculty_id == current_faculty.id,
+        AttendanceSession.is_active == True,
+    ).first()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Active session not found or you are not the session owner",
+        )
+
+    classroom = db.query(Classroom).filter(Classroom.id == session.classroom_id).first()
+    subject   = db.query(Subject).filter(Subject.id == session.subject_id).first()
+
+    classroom_name = classroom.room_name if classroom else "Unknown"
+    subject_name   = subject.subject_name if subject else "Unknown"
+
+    # Build signed QR JWT token (10-minute validity)
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    payload = {
+        "session_id": session_id,
+        "faculty_id": current_faculty.id,
+        "type":       "qr_attendance",
+        "exp":        expires_at,
+        "iat":        datetime.utcnow(),
+    }
+    token = jose_jwt.encode(
+        payload,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+    logger.info(
+        f"[QR_PNG] Generating PNG: faculty={current_faculty.id}, "
+        f"session={session_id}, subject={subject_name}, classroom={classroom_name}"
+    )
+
+    # Build QR image
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=12,
+        border=4,
+    )
+    qr.add_data(token)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    # Write PNG to in-memory buffer
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    safe = "".join(c for c in subject_name if c.isalnum() or c in " _-").strip()
+    filename = f"SmartAttend_QR_{safe}_{session_id}.png"
+
+    logger.info(f"[QR_PNG] PNG ready: {filename}, expires={expires_at.isoformat()}")
+
+    return StreamingResponse(
+        buffer,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Session-Id":   str(session_id),
+            "X-Expires-At":   expires_at.isoformat() + "Z",
+            "X-Subject":      subject_name,
+            "X-Classroom":    classroom_name,
+        },
+    )

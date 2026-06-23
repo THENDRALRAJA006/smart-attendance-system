@@ -1,6 +1,3 @@
-Replace `backend/app/services/attendance_service.py` with:
-
-```python
 import logging
 import secrets
 from datetime import datetime
@@ -338,4 +335,3 @@ def mark_attendance(
     )
 
     return record
-```
