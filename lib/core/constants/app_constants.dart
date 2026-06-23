@@ -5,16 +5,10 @@
 class AppConstants {
   // ─── API ────────────────────────────────────────────────
   // Production Render URL (confirmed)
-  // For local development (Android emulator):
-  static const String baseUrl = 'http://10.0.2.2:8000';
-  // static const String baseUrl = 'https://smart-attendance-system-2-qthq.onrender.com';
+  static const String baseUrl = 'https://smart-attendance-system-2-qthq.onrender.com';
 
-  // For local development, use:
-  // static const String baseUrl = 'http://10.0.2.2:8000'; // Android emulator
-  // static const String baseUrl = 'http://localhost:8000'; // Web/Desktop
-
-  static const int connectTimeout = 30;  // seconds
-  static const int receiveTimeout = 60;  // seconds — extended for AWS Rekognition (cold start ~8s × 15 poses)
+  static const int connectTimeout = 60;  // seconds
+  static const int receiveTimeout = 120; // seconds — extended for AWS Rekognition & Render cold starts
 
   // ─── JWT ────────────────────────────────────────────────
   static const String tokenKey       = 'smart_attend_jwt';

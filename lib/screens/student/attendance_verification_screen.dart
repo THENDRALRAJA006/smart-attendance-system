@@ -22,7 +22,6 @@ import 'package:get/get.dart';
 
 import '../../controllers/attendance_controller.dart';
 import '../../controllers/auth_controller.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/services/camera_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/gradient_button.dart';
@@ -68,26 +67,11 @@ class _AttendanceVerificationScreenState
   bool _livenessVerified = false;
   String? _livenessToken;
 
-  // ─── Animation ─────────────────────────────────────────────
-  late AnimationController _pulseCtrl;
-  late Animation<double> _pulseAnim;
-
   // ─── Lifecycle ─────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
-    _initAnimations();
     _initCamera();
-  }
-
-  void _initAnimations() {
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.97, end: 1.03).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
   }
 
   Future<void> _initCamera() async {
@@ -96,7 +80,6 @@ class _AttendanceVerificationScreenState
       if (!mounted) return;
       setState(() {
         _state = _VerifyState.cameraReady;
-        _statusMessage = 'Position your face in the oval and tap Capture';
       });
       dev.log('[CAMERA] Initialized successfully', name: 'VerifyScreen');
     } catch (e) {
@@ -108,11 +91,7 @@ class _AttendanceVerificationScreenState
     }
   }
 
-  @override
-  void dispose() {
-    _pulseCtrl.dispose();
-    super.dispose();
-  }
+
 
   // ─── Step 1: Capture Selfie ───────────────────────────────
   Future<void> _captureImage() async {
