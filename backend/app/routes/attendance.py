@@ -110,17 +110,16 @@ async def verify_attendance(
     # 0. Validate student registration
     from app.models.models import FaceEmbedding
     registered_faces_count = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).count()
-    has_local_face = bool(current_student.face_id)
 
-    if registered_faces_count < 15 and not has_local_face:
+    if registered_faces_count < 15:
         logger.warning(
-            f"[REGISTRATION_VALIDATION] Registration incomplete/missing for student={current_student.id}. "
-            f"Faces count={registered_faces_count}, Local face={has_local_face}"
+            f"[REGISTRATION_VALIDATION] Registration incomplete for student={current_student.id}. "
+            f"Faces count={registered_faces_count} (needs 15)"
         )
         return {
             "eligible": False,
             "step": "no_registration",
-            "message": "No registered face profile found. Please register your face first.",
+            "message": f"Face registration incomplete ({registered_faces_count}/15 poses captured). Please register your face first.",
             "session_id": session_id,
             "classroom_name": classroom_name,
             "classroom_uuid": classroom_uuid,
@@ -206,6 +205,7 @@ async def mark_attendance_endpoint(
     # 1. Validate session
     session = get_session_by_id(db, session_id)
     logger.info(f"[SESSION] Validated: session_id={session_id}, is_active={session.is_active}")
+    logger.info(f"[BACKEND_LOG] Session loaded: session_id={session.id}, subject_id={session.subject_id}, classroom_id={session.classroom_id}")
 
     # 2. Check duplicate attendance
     check_duplicate_attendance(db, current_student.id, session_id)
@@ -251,20 +251,20 @@ async def mark_attendance_endpoint(
         logger.info(
             f"[LIVENESS] No token provided for student={current_student.id} — skipped"
         )
+    logger.info(f"[BACKEND_LOG] Liveness verified: liveness_verified={liveness_verified} for student={current_student.id}")
 
     # 6. Face Verification (Local ArcFace)
     from app.models.models import FaceEmbedding
     registered_faces_count = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).count()
-    has_local_face = bool(current_student.face_id)
 
-    if registered_faces_count < 15 and not has_local_face:
+    if registered_faces_count < 15:
         logger.warning(
             f"[REGISTRATION_VALIDATION] Registration incomplete/missing for student={current_student.id}. "
-            f"Faces count={registered_faces_count}, Local face={has_local_face}"
+            f"Faces count={registered_faces_count} (needs 15)"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No registered face profile found. Please register your face first.",
+            detail=f"Face profile registration incomplete ({registered_faces_count}/15 poses captured). Please register your face first.",
         )
 
     image_bytes = await file.read()
@@ -334,6 +334,7 @@ async def mark_attendance_endpoint(
         confidence_tier=tier,
         attendance_method="ble_face",
     )
+    logger.info(f"[BACKEND_LOG] Attendance marked: record_id={record.id}, student_id={current_student.id}, session_id={session_id}, tier={tier}")
 
     logger.info(
         f"[ATTENDANCE_MARK] ✅ SUCCESS: attendance_id={record.id}, "
@@ -346,6 +347,7 @@ async def mark_attendance_endpoint(
         "verified": True,
         "tier": tier,
         "confidence": confidence,
+        "similarity": result.get("similarity", 0.0),
         "message": msg,
         "attendance_id": record.id,
         "time": record.time,

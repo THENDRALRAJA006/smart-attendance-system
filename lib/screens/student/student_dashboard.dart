@@ -172,7 +172,7 @@ class StudentDashboard extends StatelessWidget {
                     debugPrint("Face URL: ${s?.faceImageUrl}");
                     debugPrint("======================");
                     // Show warning if student has not yet registered their face
-                    if (s == null || (s.faceId != null && s.faceId!.isNotEmpty)) {
+                    if (s == null || s.hasFaceRegistered) {
                       return const SizedBox.shrink();
                     }
                     return Padding(

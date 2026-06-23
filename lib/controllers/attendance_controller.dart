@@ -127,6 +127,7 @@ class AttendanceController extends GetxController {
   /// FALLBACK: if deepLinkSessionId is null, fetches the active session
   /// by classroom BLE UUID or name.
   Future<void> selectClassroom(DetectedClassroom classroom) async {
+    dev.log('[LOG] Classroom selected: name=${classroom.name}, deviceId=${classroom.deviceId}, rssi=${classroom.rssi} dBm', name: 'AttendanceController');
     dev.log(
       '[DETECTED_CLASSROOM] selectClassroom selected: '
       'name=${classroom.name}, deviceId=${classroom.deviceId}, '
@@ -230,6 +231,7 @@ class AttendanceController extends GetxController {
     errorMessage.value = '';
 
     try {
+      dev.log('[LOG] API called: verifyFace /attendance/mark for session_id=${deepLinkSessionId.value}', name: 'AttendanceController');
       dev.log("========== FACE VERIFY DEBUG ==========");
       dev.log("[CAMERA] Using pre-captured image: ${imageFile.path}");
       dev.log("[SESSION] Session ID: ${deepLinkSessionId.value}");
@@ -333,6 +335,7 @@ class AttendanceController extends GetxController {
 
     final response = await _api.postMultipart('/attendance/mark', formData);
     final data = response.data as Map<String, dynamic>;
+    dev.log('[LOG] API response received from /attendance/mark: $data', name: 'AttendanceController');
 
     dev.log(
       '[MARK] Response: '

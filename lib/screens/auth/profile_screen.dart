@@ -89,7 +89,7 @@ class _ProfileHeader extends StatelessWidget {
           final name = student?.name ?? faculty?.name ?? 'User';
           final role = auth.role.value;
           final email = student?.email ?? faculty?.email ?? '';
-          final hasFace = student?.faceId != null;
+          final hasFace = student?.hasFaceRegistered == true;
 
           return Row(
             children: [
@@ -209,9 +209,9 @@ class _InfoSection extends StatelessWidget {
           _InfoItem('Year / Section', '${student.year} / ${student.section}', Icons.calendar_today_outlined),
           _InfoItem(
             'Face Status',
-            student.faceId != null ? 'Registered ✓' : 'Not Registered',
+            student.hasFaceRegistered ? 'Registered ✓' : 'Not Registered',
             Icons.face_outlined,
-            valueColor: student.faceId != null ? AppTheme.success : AppTheme.warning,
+            valueColor: student.hasFaceRegistered ? AppTheme.success : AppTheme.warning,
           ),
         ]);
       } else if (faculty != null) {

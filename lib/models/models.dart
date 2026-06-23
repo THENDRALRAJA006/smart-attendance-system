@@ -64,7 +64,7 @@ class StudentModel {
         'created_at': createdAt.toIso8601String(),
       };
 
-  bool get hasFaceRegistered => faceId != null && faceId!.isNotEmpty;
+  bool get hasFaceRegistered => faceId != null && faceId!.isNotEmpty && faceId!.startsWith('arcface');
 }
 
 // ─── Faculty Model ──────────────────────────────────────────

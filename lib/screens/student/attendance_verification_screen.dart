@@ -70,6 +70,7 @@ class _AttendanceVerificationScreenState
   @override
   void initState() {
     super.initState();
+    dev.log('[LOG] Verification screen opened', name: 'VerifyScreen');
     _initCamera();
   }
 
@@ -94,6 +95,7 @@ class _AttendanceVerificationScreenState
 
   // ─── Step 1: Capture & Verify Selfie ──────────────────────
   Future<void> _captureAndVerify() async {
+    dev.log('[LOG] Capture button pressed', name: 'VerifyScreen');
     dev.log('[CAMERA] Capturing selfie for verification...', name: 'VerifyScreen');
     setState(() {
       _errorMessage = null;

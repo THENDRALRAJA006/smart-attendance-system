@@ -166,6 +166,7 @@ class FaceService:
         stored_records = db.query(FaceEmbedding).filter(
             FaceEmbedding.student_id == student_id
         ).all()
+        logger.info(f"[BACKEND_LOG] Embeddings loaded: count={len(stored_records)} for student={student_id}")
         
         if not stored_records:
             logger.warning(f"[ArcFace] No stored embeddings found for student={student_id}")
@@ -194,6 +195,9 @@ class FaceService:
         logger.info(
             f"[ArcFace] Face match result student={student_id}: "
             f"max_similarity={max_similarity:.4f} (best_pose={best_pose})"
+        )
+        logger.info(
+            f"[BACKEND_LOG] Similarity score: max_similarity={max_similarity:.4f} (best_pose={best_pose}) for student={student_id}"
         )
         
         # Apply tier rules
