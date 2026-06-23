@@ -10,8 +10,15 @@ FROM python:3.12-slim
 ARG PORT=8000
 
 # ─── System dependencies ─────────────────────────────────────
+# We install compiler tools (build-essential, gcc, g++, cmake, python3-dev)
+# required to compile insightface Cython extensions, and graphics
+# run-time libraries (libglib2.0-0, libgl1) for OpenCV.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     gcc \
+    g++ \
+    cmake \
+    python3-dev \
     default-libmysqlclient-dev \
     pkg-config \
     curl \
@@ -45,5 +52,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # ─── Start server ────────────────────────────────────────────
-# 4 workers for production; Render sets $PORT automatically
 CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --log-level info"]
