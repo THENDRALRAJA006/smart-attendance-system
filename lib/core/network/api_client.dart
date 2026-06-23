@@ -7,13 +7,14 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' as getx;
 import '../constants/app_constants.dart';
 import '../services/storage_service.dart';
+import '../../config/api_config.dart';
 
 class ApiClient {
   static ApiClient get to => getx.Get.find();
 
   late final Dio _dio;
   
-  String get baseUrl => AppConstants.baseUrl;
+  String get baseUrl => ApiConfig.baseUrl;
   
   String? _authTokenCache;
   String? get authToken => _authTokenCache;
@@ -22,7 +23,7 @@ class ApiClient {
     _initTokenCache();
     _dio = Dio(
       BaseOptions(
-        baseUrl: AppConstants.baseUrl,
+        baseUrl: ApiConfig.baseUrl,
         connectTimeout: Duration(seconds: AppConstants.connectTimeout),
         receiveTimeout: Duration(seconds: AppConstants.receiveTimeout),
         headers: {'Content-Type': 'application/json'},
@@ -103,7 +104,7 @@ class ApiClient {
       if (refreshToken == null) return false;
 
       // Use a fresh Dio instance to avoid interceptor loop
-      final refreshDio = Dio(BaseOptions(baseUrl: AppConstants.baseUrl));
+      final refreshDio = Dio(BaseOptions(baseUrl: ApiConfig.baseUrl));
       final response = await refreshDio.post(
         '/auth/refresh',
         data: {'refresh_token': refreshToken},

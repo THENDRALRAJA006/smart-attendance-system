@@ -2,10 +2,12 @@
 // SmartAttend — App Constants
 // ============================================================
 
+import '../../config/api_config.dart';
+
 class AppConstants {
   // ─── API ────────────────────────────────────────────────
-  // Production Render URL (confirmed)
-  static const String baseUrl = 'https://smart-attendance-system-2-qthq.onrender.com';
+  // Centralized URL from ApiConfig
+  static const String baseUrl = ApiConfig.baseUrl;
 
   static const int connectTimeout = 60;  // seconds
   static const int receiveTimeout = 120; // seconds — extended for AWS Rekognition & Render cold starts
