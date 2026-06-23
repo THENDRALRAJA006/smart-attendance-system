@@ -37,15 +37,7 @@ class Settings(BaseSettings):
     JWT_REFRESH_SECRET_KEY: str = "change-me-refresh-in-production"
     JWT_REFRESH_EXPIRE_DAYS: int = 7
 
-    # ─── AWS ───────────────────────────────────────────────
-    AWS_ACCESS_KEY_ID: str = ""
-    AWS_SECRET_ACCESS_KEY: str = ""
-    AWS_REGION: str = "ap-southeast-2"
-    AWS_REKOGNITION_COLLECTION_ID: str = "smart-attendance-faces"
 
-    # ─── S3 ────────────────────────────────────────────────
-    S3_BUCKET_NAME: str = "smart-attendance-faces-thendral"
-    S3_FACE_PREFIX: str = "faces"
 
     # ─── CORS ──────────────────────────────────────────────
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
@@ -71,6 +63,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 @lru_cache()

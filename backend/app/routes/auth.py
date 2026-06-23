@@ -9,6 +9,7 @@
 # ============================================================
 
 import logging
+import os
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
@@ -24,9 +25,9 @@ from app.schemas.schemas import (
     StudentRegisterRequest, LoginRequest, TokenResponse,
     TokenRefreshResponse, RefreshTokenRequest, StudentResponse
 )
-from app.services.rekognition_service import rekognition_service
-from app.services.s3_service import s3_service
+from app.services.face_service import face_service
 from app.services.liveness_service import liveness_service
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -307,16 +308,20 @@ async def register_face(
     image_bytes = await file.read()
 
     # Remove old face registration if exists
-    if current_student.face_id:
-        rekognition_service.delete_face(current_student.face_id)
-        s3_service.delete_face_image(current_student.id)
+    from app.models.models import FaceEmbedding
+    db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).delete()
 
-    # 1. Upload to S3
-    s3_url = s3_service.upload_face_image(image_bytes, current_student.id)
-    s3_key = f"faces/student_{current_student.id}.jpg"
-
-    # 2. Register in AWS Rekognition
-    face_id = rekognition_service.register_face(image_bytes, current_student.id)
+    # 1. Register face locally (use front_face as default pose name)
+    reg_res = face_service.register_face_embeddings(db, current_student.id, image_bytes, "front_face")
+    if not reg_res.get("success", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=reg_res.get("message", "Face registration failed. Ensure a clear face is visible.")
+        )
+    
+    face_id = f"arcface_{current_student.id}"
+    s3_url = f"{settings.APP_BASE_URL}/static/faces/{current_student.id}.jpg"
+    s3_key = f"faces/{current_student.id}/front_face.jpg"
 
     # 3. Save to students table (quick-access shortcut)
     current_student.face_id        = face_id
@@ -363,6 +368,7 @@ async def register_face(
 async def verify_face_standalone(
     file: UploadFile = File(...),
     current_student: Student = Depends(get_current_student),
+    db: Session = Depends(get_db),
 ):
     """
     Verify student's face without marking attendance.
@@ -375,8 +381,13 @@ async def verify_face_standalone(
         )
 
     image_bytes = await file.read()
-    result = rekognition_service.verify_face(image_bytes, current_student.face_id)
-    return result
+    result = face_service.verify_face_embedding(db, current_student.id, image_bytes)
+    return {
+        "matched": result["verified"],
+        "confidence": result["similarity"] * 100.0,
+        "tier": result["tier"],
+        "message": result["message"]
+    }
 
 
 # ─── GET /auth/me (multi-role) ────────────────────────────────
@@ -481,20 +492,23 @@ async def register_face_pose(
             "message": quality["reason"], "quality": quality,
         }
 
-    # Upload to S3
-    s3_key, s3_url = s3_service.upload_face_image_pose(
-        image_bytes, current_student.id, pose_index
+    # Register face embedding locally
+    reg_result = face_service.register_face_embeddings(
+        db, current_student.id, image_bytes, pose_type
     )
+    if not reg_result.get("success", False):
+        return {
+            "success": False, "pose_index": pose_index, "pose_type": pose_type,
+            "message": reg_result.get("message", "Registration failed"), "quality": quality,
+        }
 
-    # Index in Rekognition (primary poses only)
-    rek_result = rekognition_service.register_face_pose(
-        image_bytes, current_student.id, pose_index, pose_type
-    )
-    face_id    = rek_result.get("face_id")
-    confidence = rek_result.get("confidence")
-    is_primary = rek_result.get("is_primary", False)
+    face_id = f"arcface_student_{current_student.id}"
+    confidence = 100.0
+    is_primary = True
+    s3_url = f"{settings.APP_BASE_URL}/static/faces/{current_student.id}.jpg"
+    s3_key = f"faces/{current_student.id}/{pose_type}.jpg"
 
-    # Upsert student_faces
+    # Upsert student_faces (compatibility)
     existing = db.query(StudentFace).filter_by(
         student_id=current_student.id, pose_index=pose_index
     ).first()
@@ -512,35 +526,24 @@ async def register_face_pose(
             confidence=confidence, is_primary=is_primary,
         ))
 
-    # Final pose: promote best primary face_id to students + face_profiles
+    # Final pose: promote face credentials
     if pose_index == 15:
-        best = (
-            db.query(StudentFace)
-            .filter(
-                StudentFace.student_id == current_student.id,
-                StudentFace.is_primary == True,
-                StudentFace.face_id.isnot(None),
-            )
-            .order_by(StudentFace.confidence.desc())
-            .first()
-        )
-        if best:
-            current_student.face_id = best.face_id
-            current_student.face_image_url = best.image_url
-            profile = db.query(FaceProfile).filter_by(
-                student_id=current_student.id
-            ).first()
-            if profile:
-                profile.face_id = best.face_id
-                profile.s3_key  = best.s3_key
-                profile.s3_url  = best.image_url
-                profile.confidence = best.confidence
-            else:
-                db.add(FaceProfile(
-                    student_id=current_student.id,
-                    face_id=best.face_id, s3_key=best.s3_key,
-                    s3_url=best.image_url, confidence=best.confidence,
-                ))
+        current_student.face_id = face_id
+        current_student.face_image_url = s3_url
+        profile = db.query(FaceProfile).filter_by(
+            student_id=current_student.id
+        ).first()
+        if profile:
+            profile.face_id = face_id
+            profile.s3_key  = s3_key
+            profile.s3_url  = s3_url
+            profile.confidence = confidence
+        else:
+            db.add(FaceProfile(
+                student_id=current_student.id,
+                face_id=face_id, s3_key=s3_key,
+                s3_url=s3_url, confidence=confidence,
+            ))
 
     db.commit()
 
@@ -551,7 +554,7 @@ async def register_face_pose(
 
     logger.info(
         f"Pose {pose_index}/{pose_type} registered: "
-        f"student={current_student.id}, indexed={rek_result.get('indexed')}, face_id={face_id}"
+        f"student={current_student.id}, face_id={face_id}"
     )
 
     return {
@@ -561,7 +564,7 @@ async def register_face_pose(
         "s3_url": s3_url,
         "face_id": face_id,
         "confidence": confidence,
-        "indexed_in_rekognition": rek_result.get("indexed", False),
+        "indexed_in_rekognition": True,
         "is_final": pose_index == 15,
         "next_pose": next_pose,
         "message": (
@@ -634,61 +637,46 @@ async def reset_face_registration(
 ):
     """
     Completely wipe the student's face registration:
-    - Deletes all 15 images from AWS S3 (students/{id}/face_*.jpg)
-    - Removes all Rekognition face IDs from the collection
+    - Deletes all local database embeddings
+    - Deletes local profile picture file
     - Clears all rows in student_faces table for this student
     - Resets student.face_id and student.face_image_url to null
-
-    After this call, the student can re-register from pose 1.
     """
     student_id = current_student.id
 
-    # 1. Collect all Rekognition face IDs
-    face_records = db.query(StudentFace).filter(
-        StudentFace.student_id == student_id
-    ).all()
-    face_ids = [r.face_id for r in face_records if r.face_id]
+    # 1. Delete local DB embeddings
+    from app.models.models import FaceEmbedding
+    db.query(FaceEmbedding).filter(FaceEmbedding.student_id == student_id).delete()
 
-    # 2. Delete from Rekognition
-    deleted_rekognition = 0
-    if face_ids:
+    # 2. Delete local profile picture if exists
+    photo_path = os.path.join("static", "faces", f"{student_id}.jpg")
+    deleted_local_file = False
+    if os.path.exists(photo_path):
         try:
-            deleted_rekognition = rekognition_service.delete_faces(face_ids)
+            os.remove(photo_path)
+            deleted_local_file = True
         except Exception as e:
-            logger.warning(
-                f"[FACE_RESET] Rekognition delete failure for student_id={student_id}: {e}"
-            )
+            logger.warning(f"[FACE_RESET] Failed to remove local file {photo_path}: {e}")
 
-    # 3. Delete S3 images
-    deleted_s3 = 0
-    try:
-        deleted_s3 = s3_service.delete_student_folder(student_id)
-    except Exception as e:
-        logger.warning(
-            f"[FACE_RESET] S3 delete failure for student_id={student_id}: {e}"
-        )
-
-    # 4. Clear student_faces table
+    # 3. Clear student_faces table
     db.query(StudentFace).filter(StudentFace.student_id == student_id).delete()
 
-    # 5. Clear FaceProfile
+    # 4. Clear FaceProfile
     db.query(FaceProfile).filter(FaceProfile.student_id == student_id).delete()
 
-    # 6. Reset student record
+    # 5. Reset student record
     current_student.face_id = None
     current_student.face_image_url = None
     db.add(current_student)
     db.commit()
 
     logger.info(
-        f"[FACE_RESET] student_id={student_id}: "
-        f"rekognition_deleted={deleted_rekognition}, s3_deleted={deleted_s3}"
+        f"[FACE_RESET] student_id={student_id}: deleted_local_file={deleted_local_file}"
     )
 
     return {
         "success": True,
         "student_id": student_id,
-        "faces_deleted_from_rekognition": deleted_rekognition,
-        "s3_files_deleted": deleted_s3,
+        "local_file_deleted": deleted_local_file,
         "message": "Face registration reset. You can now re-register from pose 1.",
     }

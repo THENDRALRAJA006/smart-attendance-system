@@ -142,10 +142,12 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
         duration: const Duration(seconds: 2),
       );
 
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'image/png')],
-        subject: 'SmartAttend QR Code — Session $_selectedSessionId',
-        text: 'Scan to mark attendance. Valid for 10 minutes.',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'image/png')],
+          subject: 'SmartAttend QR Code — Session $_selectedSessionId',
+          text: 'Scan to mark attendance. Valid for 10 minutes.',
+        ),
       );
     } catch (e) {
       if (mounted) {

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_admin
 from app.core.security import hash_password
+from app.core.config import settings
 from app.models.models import (
     Admin, Student, Faculty, Classroom, Subject, Attendance,
     Session as SessionModel, BleBeacon
@@ -521,14 +522,7 @@ async def get_student_face_image(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    if not student.face_id:
-        raise HTTPException(status_code=404, detail="No face registered for this student")
-
-    from app.services.s3_service import s3_service
-    url = s3_service.get_presigned_url(student_id)
-    if not url:
-        raise HTTPException(status_code=404, detail="Face image not found in storage")
-
+    url = student.face_image_url or f"{settings.APP_BASE_URL}/static/faces/{student.id}.jpg"
     return {"student_id": student_id, "presigned_url": url, "expires_in": 3600}
 
 

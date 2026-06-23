@@ -1,7 +1,7 @@
 # ============================================================
 # SmartAttend — Attendance Routes (v4)
 # POST /attendance/verify      — Pre-check eligibility & range
-# POST /attendance/mark        — Face match (Rekognition) + liveness verify
+# POST /attendance/mark        — Face match (ArcFace) + liveness verify
 # POST /attendance/mark-qr     — Scan QR code fallback
 # GET  /attendance/active-session — Lookup active session by BLE UUID
 # ============================================================
@@ -24,7 +24,7 @@ from app.services.attendance_service import (
     validate_student_eligibility,
     mark_attendance,
 )
-from app.services.rekognition_service import rekognition_service
+from app.services.face_service import face_service
 from app.services.liveness_service import liveness_service
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ async def get_active_session(
 
     if not active_session:
         logger.info(f"[ACTIVE_SESSION_LOOKUP] No active session in classroom={classroom.room_name}")
-        return {"session_id": None}
+        return {"session_id": None, "is_active": False}
 
     subject = db.query(Subject).filter(Subject.id == active_session.subject_id).first()
     subject_name = subject.subject_name if subject else "Unknown Subject"
@@ -80,7 +80,8 @@ async def get_active_session(
         "session_id": active_session.id,
         "subject_name": subject_name,
         "classroom_name": classroom.room_name,
-        "classroom_uuid": classroom.ble_uuid
+        "classroom_uuid": classroom.ble_uuid,
+        "is_active": True
     }
 
 
@@ -107,14 +108,14 @@ async def verify_attendance(
     subject_name = subject.subject_name if subject else "Unknown Subject"
 
     # 0. Validate student registration
-    from app.models.models import StudentFace
-    registered_faces_count = db.query(StudentFace).filter(StudentFace.student_id == current_student.id).count()
-    has_rekognition_face = bool(current_student.face_id)
+    from app.models.models import FaceEmbedding
+    registered_faces_count = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).count()
+    has_local_face = bool(current_student.face_id)
 
-    if registered_faces_count < 15 and not has_rekognition_face:
+    if registered_faces_count < 15 and not has_local_face:
         logger.warning(
             f"[REGISTRATION_VALIDATION] Registration incomplete/missing for student={current_student.id}. "
-            f"Faces count={registered_faces_count}, Rekognition face={has_rekognition_face}"
+            f"Faces count={registered_faces_count}, Local face={has_local_face}"
         )
         return {
             "eligible": False,
@@ -251,15 +252,15 @@ async def mark_attendance_endpoint(
             f"[LIVENESS] No token provided for student={current_student.id} — skipped"
         )
 
-    # 6. Face Verification (AWS Rekognition)
-    from app.models.models import StudentFace
-    registered_faces_count = db.query(StudentFace).filter(StudentFace.student_id == current_student.id).count()
-    has_rekognition_face = bool(current_student.face_id)
+    # 6. Face Verification (Local ArcFace)
+    from app.models.models import FaceEmbedding
+    registered_faces_count = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).count()
+    has_local_face = bool(current_student.face_id)
 
-    if registered_faces_count < 15 and not has_rekognition_face:
+    if registered_faces_count < 15 and not has_local_face:
         logger.warning(
             f"[REGISTRATION_VALIDATION] Registration incomplete/missing for student={current_student.id}. "
-            f"Faces count={registered_faces_count}, Rekognition face={has_rekognition_face}"
+            f"Faces count={registered_faces_count}, Local face={has_local_face}"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -277,24 +278,21 @@ async def mark_attendance_endpoint(
     logger.info(f"Image size: {len(image_bytes)} bytes")
 
     logger.info(
-        f"[AWS] Sending to Rekognition: student_id={current_student.id}, "
-        f"face_id={current_student.face_id}, threshold={settings.FACE_MATCH_THRESHOLD}%"
+        f"[ArcFace] Verifying face embedding locally: student_id={current_student.id}"
     )
 
-    result = rekognition_service.verify_face(
-        image_bytes=image_bytes,
-        target_face_id=current_student.face_id,
+    result = face_service.verify_face_embedding(
+        db=db,
         student_id=current_student.id,
-        threshold=settings.FACE_MATCH_THRESHOLD,
+        live_image_bytes=image_bytes,
     )
 
-    matched = result.get("matched", False)
-    confidence = result.get("confidence", 0.0)
-    # Rekognition service now returns tier directly
+    matched = result.get("verified", False)
+    confidence = result.get("similarity", 0.0) * 100.0
     tier = result.get("tier", "rejected")
 
     logger.info(
-        f"[AWS] Rekognition response: matched={matched}, "
+        f"[ArcFace] Verification response: matched={matched}, "
         f"confidence={confidence:.2f}%, tier={tier}"
     )
 

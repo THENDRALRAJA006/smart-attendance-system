@@ -64,20 +64,6 @@ services:
       - key: JWT_REFRESH_EXPIRE_DAYS
         value: "7"
 
-      # AWS Services
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_REGION
-        value: us-east-1
-      - key: S3_BUCKET_NAME
-        value: smart-attendance-faces-thendral
-      - key: S3_FACE_PREFIX
-        value: faces
-      - key: AWS_REKOGNITION_COLLECTION_ID
-        value: smart-attendance-faces
-
       # Face Recognition
-      - key: FACE_CONFIDENCE_THRESHOLD
+      - key: FACE_MATCH_THRESHOLD
         value: "90.0"

@@ -166,11 +166,11 @@ class StudentDashboard extends StatelessWidget {
                 SliverToBoxAdapter(
                   child: Obx(() {
                     final s = auth.currentStudent.value;
-                    print("===== FACE DEBUG =====");
-                    print("Student Name: ${s?.name}");
-                    print("Face ID: ${s?.faceId}");
-                    print("Face URL: ${s?.faceImageUrl}");
-                    print("======================");
+                    debugPrint("===== FACE DEBUG =====");
+                    debugPrint("Student Name: ${s?.name}");
+                    debugPrint("Face ID: ${s?.faceId}");
+                    debugPrint("Face URL: ${s?.faceImageUrl}");
+                    debugPrint("======================");
                     // Show warning if student has not yet registered their face
                     if (s == null || (s.faceId != null && s.faceId!.isNotEmpty)) {
                       return const SizedBox.shrink();

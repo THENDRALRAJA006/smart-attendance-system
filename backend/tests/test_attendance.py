@@ -2,6 +2,8 @@
 # SmartAttend — Attendance Route Tests
 # Tests: session creation, mark attendance, RSSI validation,
 #        duplicate prevention, live attendance, export
+# NOTE: AWS Rekognition removed. All face verification mocks
+#       now target face_service (ArcFace / InsightFace).
 # ============================================================
 
 import pytest
@@ -13,36 +15,34 @@ class TestSessionManagement:
 
     def test_create_session(self, client, faculty_headers, test_classroom, faculty_user):
         """Create a new attendance session."""
-        # First create a subject for this faculty
-        with patch("app.services.rekognition_service.rekognition_service"):
-            subject_resp = client.post(
-                "/faculty/subjects",
-                json={
-                    "subject_name": "Data Structures",
-                    "subject_code": "CS301",
-                    "department": "Computer Science",
-                },
-                headers=faculty_headers,
-            )
-            # Skip if subject creation fails (dependency)
-            if subject_resp.status_code != 201:
-                pytest.skip("Subject creation failed — check faculty fixture")
+        # Create a subject first
+        subject_resp = client.post(
+            "/faculty/subjects",
+            json={
+                "subject_name": "Data Structures",
+                "subject_code": "CS301",
+                "department": "Computer Science",
+            },
+            headers=faculty_headers,
+        )
+        if subject_resp.status_code != 201:
+            pytest.skip("Subject creation failed — check faculty fixture")
 
-            subject_id = subject_resp.json()["id"]
-            response = client.post(
-                "/faculty/create-session",
-                json={
-                    "classroom_id": test_classroom.id,
-                    "subject_id": subject_id,
-                    "attendance_code": "123456",
-                },
-                headers=faculty_headers,
-            )
-            assert response.status_code == 201
-            data = response.json()
-            assert "deep_link" in data
-            assert "attendance_code" not in data
-            assert data["is_active"] is True
+        subject_id = subject_resp.json()["id"]
+        response = client.post(
+            "/faculty/create-session",
+            json={
+                "classroom_id": test_classroom.id,
+                "subject_id": subject_id,
+                "attendance_code": "123456",
+            },
+            headers=faculty_headers,
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert "deep_link" in data
+        assert "attendance_code" not in data
+        assert data["is_active"] is True
 
     def test_create_session_invalid_code(self, client, faculty_headers, test_classroom):
         """Attendance code must be exactly 6 digits."""
@@ -68,7 +68,7 @@ class TestSessionManagement:
     def test_get_active_session(self, client, student_headers, db, faculty_headers):
         """Get currently active session for a classroom."""
         from app.models.models import Classroom
-        
+
         # 1. Create a separate classroom
         temp_classroom = Classroom(
             room_name="CLASSROOM_TEMP_TEST",
@@ -78,26 +78,25 @@ class TestSessionManagement:
         db.commit()
         db.refresh(temp_classroom)
 
-        # 2. Start a session
-        with patch("app.services.rekognition_service.rekognition_service"):
-            client.post(
-                "/faculty/subjects",
-                json={
-                    "subject_name": "Data Structures",
-                    "subject_code": "CS301",
-                    "department": "Computer Science",
-                },
-                headers=faculty_headers,
-            )
-            client.post(
-                "/faculty/create-session",
-                json={
-                    "classroom_id": temp_classroom.id,
-                    "subject_id": 1,
-                    "attendance_code": "123456",
-                },
-                headers=faculty_headers,
-            )
+        # 2. Create a subject and start a session (no AWS mocks needed)
+        client.post(
+            "/faculty/subjects",
+            json={
+                "subject_name": "Data Structures",
+                "subject_code": "CS301",
+                "department": "Computer Science",
+            },
+            headers=faculty_headers,
+        )
+        client.post(
+            "/faculty/create-session",
+            json={
+                "classroom_id": temp_classroom.id,
+                "subject_id": 1,
+                "attendance_code": "123456",
+            },
+            headers=faculty_headers,
+        )
 
         # 3. Query active session via student
         response = client.get(
@@ -114,7 +113,7 @@ class TestSessionManagement:
 class TestMarkAttendance:
     """Student: mark attendance with BLE + face verification."""
 
-    @patch("app.services.rekognition_service.rekognition_service.verify_face")
+    @patch("app.services.face_service.face_service.verify_face_embedding")
     @patch("app.services.attendance_service.check_duplicate_attendance")
     def test_mark_attendance_success(
         self,
@@ -126,27 +125,23 @@ class TestMarkAttendance:
         db,
     ):
         """Happy path: BLE within range, face matches, no duplicate."""
-        # Setup mocks
         mock_check_duplicate_attendance.return_value = None
         mock_verify_face.return_value = {
-            "match": True,
-            "confidence": 98.5,
+            "status": "present",
+            "similarity": 0.92,
             "message": "Face verified",
         }
 
-        # Need an active session — create one first if possible
-        # This test is integration-level; unit mock covers the service calls
-        # At minimum, the endpoint should validate inputs
+        # Non-existent session → 404 expected (verifies auth + routing works)
         response = client.post(
             "/attendance/mark",
             data={
-                "session_id": 9999,   # non-existent session
-                "rssi": -65,          # Within acceptable range (-70 threshold)
+                "session_id": 9999,
+                "rssi": -65,
             },
             files={"file": ("test.jpg", b"imagebytes", "image/jpeg")},
             headers=student_headers,
         )
-        # Session doesn't exist → 404 is expected
         assert response.status_code in [404, 422, 400]
 
     def test_mark_attendance_unauthenticated(self, client):
@@ -167,12 +162,11 @@ class TestMarkAttendance:
             "/attendance/mark",
             data={
                 "session_id": 1,
-                "rssi": -100,         # Way below threshold (-70)
+                "rssi": -100,  # Way below threshold (-70)
             },
             files={"file": ("test.jpg", b"imagebytes", "image/jpeg")},
             headers=student_headers,
         )
-        # Should be 403 (RSSI too weak) or 404 (session not found)
         assert response.status_code in [400, 403, 404]
 
 
@@ -183,7 +177,6 @@ class TestAttendanceHistory:
         response = client.get("/student/dashboard", headers=student_headers)
         assert response.status_code == 200
         data = response.json()
-        # Must have these keys
         assert "total_classes" in data
         assert "attended_classes" in data
         assert "attendance_percentage" in data

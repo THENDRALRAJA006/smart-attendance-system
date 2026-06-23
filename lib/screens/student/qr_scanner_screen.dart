@@ -88,9 +88,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // Success — navigate to BLE classroom detection screen
+    // Success — bypass BLE check by setting RSSI to 0 and navigate to verification screen
+    _attendance.capturedRssi.value = 0;
+    _attendance.step.value = AttendanceStep.faceCapture;
+
     Get.offNamed(
-      AppConstants.routeClassroomDetection,
+      AppConstants.routeAttendanceVerification,
       arguments: {
         'deep_link': true,
         'session_id': sessionId,

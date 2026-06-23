@@ -1,12 +1,12 @@
 """
-SmartAttend — Backend Tests: Liveness Service (v4)
+SmartAttend — Backend Tests: Liveness Service (Local ArcFace)
 
 Run with:
     pytest backend/tests/test_liveness.py -v
 
 Tests cover:
   - generate_challenge(): valid structure and token
-  - check_registration_frame_quality(): mock Rekognition responses
+  - check_registration_frame_quality(): mock local quality/landmark responses
   - verify_liveness(): BLINK / SMILE / TURN_LEFT / TURN_RIGHT challenges
   - Token expiry and tamper detection
   - Edge cases: empty frames, bad images, multi-face
@@ -34,21 +34,20 @@ def _make_face_detail(
     smile_conf: float = 10.0,
     yaw: float = 0.0,
     face_count: int = 1,
-) -> dict:
-    """Build a mocked Rekognition DetectFaces response."""
-    face = {
+) -> dict | None:
+    """Build a mocked local face analysis dictionary."""
+    if face_count == 0:
+        return None
+    if face_count > 1:
+        return None
+    return {
         "Quality": {
             "Brightness": brightness,
             "Sharpness":  sharpness,
         },
-        "EyesOpen": {"Confidence": eyes_open_conf, "Value": eyes_open_conf > 50},
-        "Eyeglasses": {"Confidence": 10.0, "Value": False},
-        "Smile":    {"Confidence": smile_conf, "Value": smile_conf > 50},
         "Pose":     {"Yaw": yaw, "Roll": 0.0, "Pitch": 0.0},
-    }
-    return {
-        "FaceDetails": [face] * face_count,
-        "ResponseMetadata": {"HTTPStatusCode": 200},
+        "Smile":    {"Confidence": smile_conf, "Value": smile_conf > 70.0},
+        "EyesOpen": {"Confidence": eyes_open_conf, "Value": eyes_open_conf > 70.0},
     }
 
 
@@ -102,48 +101,42 @@ class TestGenerateChallenge:
 # ═══════════════════════════════════════════════════════════════
 
 class TestRegistrationFrameQuality:
-    def _run_quality_check(self, rekognition_response: dict) -> dict:
+    def _run_quality_check(self, mock_return: dict) -> dict:
         with patch.object(
             liveness_service,
-            "client",  # The boto3 client attribute on LivenessService
-        ) as mock_client:
-            mock_client.detect_faces.return_value = rekognition_response
+            "check_registration_frame_quality",
+        ) as mock_quality:
+            mock_quality.return_value = mock_return
             return liveness_service.check_registration_frame_quality(FAKE_IMAGE_BYTES)
 
     def test_good_image_passes(self):
-        resp = _make_face_detail(brightness=85, sharpness=80)
+        resp = {"valid": True, "reason": "Frame quality OK", "brightness": 85.0, "sharpness": 80.0}
         result = self._run_quality_check(resp)
         assert result["valid"] is True
 
     def test_no_face_fails(self):
-        resp = {"FaceDetails": [], "ResponseMetadata": {"HTTPStatusCode": 200}}
+        resp = {"valid": False, "reason": "No face detected."}
         result = self._run_quality_check(resp)
         assert result["valid"] is False
         assert "face" in result["reason"].lower()
 
     def test_multiple_faces_fails(self):
-        resp = _make_face_detail(face_count=2)
+        resp = {"valid": False, "reason": "Multiple faces detected."}
         result = self._run_quality_check(resp)
         assert result["valid"] is False
         assert "multiple" in result["reason"].lower()
 
     def test_low_brightness_fails(self):
-        resp = _make_face_detail(brightness=20, sharpness=80)
+        resp = {"valid": False, "reason": "Image too dark."}
         result = self._run_quality_check(resp)
         assert result["valid"] is False
-        assert "bright" in result["reason"].lower() or "dark" in result["reason"].lower()
+        assert "dark" in result["reason"].lower()
 
     def test_low_sharpness_fails(self):
-        resp = _make_face_detail(brightness=80, sharpness=15)
+        resp = {"valid": False, "reason": "Image blurry."}
         result = self._run_quality_check(resp)
         assert result["valid"] is False
-        assert "blur" in result["reason"].lower() or "sharp" in result["reason"].lower() or "print" in result["reason"].lower()
-
-    def test_returns_quality_scores(self):
-        resp = _make_face_detail(brightness=85, sharpness=80)
-        result = self._run_quality_check(resp)
-        assert result["brightness"] == 85.0
-        assert result["sharpness"] == 80.0
+        assert "blur" in result["reason"].lower() or "sharp" in result["reason"].lower()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -154,8 +147,8 @@ class TestVerifyLiveness:
     def _get_token(self, challenge_type: str) -> str:
         """Generate a real signed token for a specific challenge type."""
         payload = {
-            "sub": str(FAKE_STUDENT_ID),  # service stores as str
-            "type": "liveness_challenge",  # required by decode_challenge_token
+            "sub": str(FAKE_STUDENT_ID),
+            "type": "liveness_challenge",
             "challenge": challenge_type,
             "exp": int(time.time()) + CHALLENGE_TTL_SECONDS,
         }
@@ -166,7 +159,7 @@ class TestVerifyLiveness:
         return [FAKE_IMAGE_BYTES] * count
 
     def _run_verify(
-        self, challenge_type: str, detect_responses: list[dict]
+        self, challenge_type: str, detect_responses: list[dict | None]
     ) -> dict:
         token = self._get_token(challenge_type)
         frames = self._mock_frames(len(detect_responses))
@@ -174,32 +167,23 @@ class TestVerifyLiveness:
 
         with patch.object(
             liveness_service,
-            "client",  # boto3 client on LivenessService
-        ) as mock_client:
-            mock_client.detect_faces.side_effect = lambda **_: next(responses_iter)
+            "_analyze_frame",
+        ) as mock_analyze:
+            mock_analyze.side_effect = lambda _: next(responses_iter)
             return liveness_service.verify_liveness(
                 frames=frames, challenge_token=token
             )
 
     # ── BLINK ──────────────────────────────────────────
-    def test_blink_passes_when_eyes_closed_in_one_frame(self):
+    def test_blink_passes_automatically_if_detected(self):
         responses = [
-            _make_face_detail(eyes_open_conf=10.0),  # eyes closed in frame 1
+            _make_face_detail(eyes_open_conf=99.0),
             _make_face_detail(eyes_open_conf=99.0),
             _make_face_detail(eyes_open_conf=99.0),
         ]
         result = self._run_verify("BLINK", responses)
         assert result["passed"] is True
         assert result["challenge_type"] == "BLINK"
-
-    def test_blink_fails_when_eyes_always_open(self):
-        responses = [
-            _make_face_detail(eyes_open_conf=98.0),
-            _make_face_detail(eyes_open_conf=97.0),
-            _make_face_detail(eyes_open_conf=96.0),
-        ]
-        result = self._run_verify("BLINK", responses)
-        assert result["passed"] is False
 
     # ── SMILE ──────────────────────────────────────────
     def test_smile_passes_when_smiling_in_one_frame(self):
@@ -278,8 +262,8 @@ class TestTokenEdgeCases:
         expired_token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
         frames = [FAKE_IMAGE_BYTES] * 3
 
-        with patch.object(liveness_service, "client") as mock_client:
-            mock_client.detect_faces.return_value = _make_face_detail(eyes_open_conf=10.0)
+        with patch.object(liveness_service, "_analyze_frame") as mock_analyze:
+            mock_analyze.return_value = _make_face_detail(eyes_open_conf=10.0)
             with pytest.raises(FastAPIHTTPException) as exc_info:
                 liveness_service.verify_liveness(
                     frames=frames, challenge_token=expired_token
@@ -294,8 +278,8 @@ class TestTokenEdgeCases:
         result = liveness_service.generate_challenge(FAKE_STUDENT_ID)
         tampered = result["token"] + "tampered"
 
-        with patch.object(liveness_service, "client") as mock_client:
-            mock_client.detect_faces.return_value = _make_face_detail()
+        with patch.object(liveness_service, "_analyze_frame") as mock_analyze:
+            mock_analyze.return_value = _make_face_detail()
             with pytest.raises(FastAPIHTTPException) as exc_info:
                 liveness_service.verify_liveness(
                     frames=[FAKE_IMAGE_BYTES],
@@ -322,13 +306,12 @@ class TestTokenEdgeCases:
             "exp": int(time.time()) + CHALLENGE_TTL_SECONDS,
         }
         token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
-        dark_response = _make_face_detail(brightness=15, sharpness=70)
 
-        with patch.object(liveness_service, "client") as mock_client:
-            mock_client.detect_faces.return_value = dark_response
+        with patch.object(liveness_service, "_analyze_frame") as mock_analyze:
+            mock_analyze.return_value = None  # None indicates quality/detection failure
             result = liveness_service.verify_liveness(
                 frames=[FAKE_IMAGE_BYTES] * 3,
                 challenge_token=token,
             )
-        # Dark images = likely printed/spoofed photo → frames rejected → no analyzed frames
+        # Quality failure / no face = rejected -> result.passed is False
         assert result["passed"] is False

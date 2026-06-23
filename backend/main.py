@@ -13,8 +13,9 @@ from fastapi.routing import APIRoute
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.services.rekognition_service import rekognition_service
 from app.routes import auth, student, faculty, admin, attendance
+from fastapi.staticfiles import StaticFiles
+import os
 
 # ─── Logging ─────────────────────────────────────────────────
 logging.basicConfig(
@@ -46,13 +47,6 @@ async def lifespan(app: FastAPI):
     # Create DB tables
     init_db()
     logger.info("✅ Database tables initialized")
-    
-    # Ensure AWS Rekognition collection exists
-    try:
-        rekognition_service.ensure_collection()
-        logger.info("✅ AWS Rekognition collection ready")
-    except Exception as e:
-        logger.warning(f"⚠ Rekognition init warning: {e}")
     
     logger.info("✅ SmartAttend API ready")
     yield
@@ -102,6 +96,10 @@ app.include_router(student.router)
 app.include_router(faculty.router)
 app.include_router(admin.router)
 app.include_router(attendance.router)
+
+# Mount static files directory
+os.makedirs("static/faces", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # ─── Global Exception Handler ────────────────────────────────

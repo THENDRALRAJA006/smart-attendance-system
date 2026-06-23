@@ -61,7 +61,6 @@ class _AttendanceVerificationScreenState
   _VerifyState _state = _VerifyState.cameraReady;
   File? _capturedImage;
   String? _errorMessage;
-  String _statusMessage = 'Initializing camera...';
 
   // ─── Liveness (optional) ───────────────────────────────────
   bool _livenessVerified = false;
@@ -93,12 +92,11 @@ class _AttendanceVerificationScreenState
 
 
 
-  // ─── Step 1: Capture Selfie ───────────────────────────────
-  Future<void> _captureImage() async {
-    dev.log('[CAMERA] Capturing selfie...', name: 'VerifyScreen');
+  // ─── Step 1: Capture & Verify Selfie ──────────────────────
+  Future<void> _captureAndVerify() async {
+    dev.log('[CAMERA] Capturing selfie for verification...', name: 'VerifyScreen');
     setState(() {
       _errorMessage = null;
-      _statusMessage = 'Capturing...';
     });
 
     try {
@@ -109,13 +107,20 @@ class _AttendanceVerificationScreenState
       setState(() {
         _capturedImage = file;
         _state = _VerifyState.imageCaptured;
-        _statusMessage = 'Review your photo';
       });
+
+      // Brief pause to let user see captured face
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+
+      // Proceed to verification sequence
+      await _runOptionalLiveness();
     } catch (e) {
       dev.log('[CAMERA] Capture failed: $e', name: 'VerifyScreen');
       if (!mounted) return;
       setState(() {
         _errorMessage = 'Capture failed: $e. Please try again.';
+        _state = _VerifyState.cameraReady;
       });
     }
   }
@@ -129,7 +134,6 @@ class _AttendanceVerificationScreenState
       _errorMessage = null;
       _livenessVerified = false;
       _livenessToken = null;
-      _statusMessage = 'Position your face in the oval and tap Capture';
     });
   }
 
@@ -139,7 +143,6 @@ class _AttendanceVerificationScreenState
     dev.log('[LIVENESS] Fetching challenge...', name: 'VerifyScreen');
     setState(() {
       _state = _VerifyState.livenessRunning;
-      _statusMessage = 'Running optional liveness check...';
     });
 
     try {
@@ -207,7 +210,7 @@ class _AttendanceVerificationScreenState
     }
 
     dev.log(
-        '[AWS] Sending to Rekognition — image=${image.path}, '
+        '[ArcFace] Sending to local ArcFace — image=${image.path}, '
         'session=${_attendance.deepLinkSessionId.value}, '
         'rssi=${_attendance.capturedRssi.value}, '
         'liveness_verified=$_livenessVerified',
@@ -216,7 +219,6 @@ class _AttendanceVerificationScreenState
     if (!mounted) return;
     setState(() {
       _state = _VerifyState.verifying;
-      _statusMessage = 'Verifying face & marking attendance...';
     });
 
     // Delegate to controller — passes the pre-captured image
@@ -417,7 +419,7 @@ class _AttendanceVerificationScreenState
                               color: AppTheme.accent, size: 12),
                           SizedBox(width: 5),
                           Text(
-                            'AWS REKOGNITION PROTECTED',
+                            'ARCFACE SECURED',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 9,
@@ -453,7 +455,7 @@ class _AttendanceVerificationScreenState
   Widget _buildVerifyingOverlay() {
     final label = _state == _VerifyState.livenessRunning
         ? 'Running liveness check...'
-        : 'Verifying with AWS Rekognition...';
+        : 'Verifying with ArcFace...';
     return Container(
       color: Colors.black.withValues(alpha: 0.72),
       child: Center(
@@ -520,7 +522,7 @@ class _AttendanceVerificationScreenState
           icon = Icons.cloud_upload_rounded;
           iconColor = AppTheme.accent;
           title = 'Submitting';
-          body = 'Sending to AWS Rekognition for face matching...';
+          body = 'Comparing face embedding locally via ArcFace...';
           break;
       }
     }
@@ -663,12 +665,12 @@ class _AttendanceVerificationScreenState
         ],
         Obx(() => GradientButton(
               text: _camera.isInitialized.value
-                  ? 'Capture Selfie'
+                  ? 'Capture & Verify Face'
                   : 'Starting Camera...',
               icon: Icons.camera_alt_rounded,
               isLoading: !_camera.isInitialized.value,
               onPressed:
-                  _camera.isInitialized.value ? _captureImage : null,
+                  _camera.isInitialized.value ? _captureAndVerify : null,
             )),
         const SizedBox(height: 8),
         const Row(

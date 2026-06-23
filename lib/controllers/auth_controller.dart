@@ -5,6 +5,7 @@
 // ============================================================
 
 import 'package:dio/dio.dart' as dio;
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import '../core/constants/app_constants.dart';
 import '../core/network/api_client.dart';
@@ -64,10 +65,10 @@ class AuthController extends GetxController {
       final redirect = Get.parameters['redirect_after_login'];
 
       if (returnedRole == 'student') {
-      print("LOGIN USER DATA:");
-      print(data['user']);
-      print("FACE ID: ${data['user']['face_id']}");
-      print("FACE URL: ${data['user']['face_image_url']}");
+      debugPrint('LOGIN USER DATA:');
+      debugPrint('${data['user']}');
+      debugPrint('FACE ID: ${data['user']['face_id']}');
+      debugPrint('FACE URL: ${data['user']['face_image_url']}');
 
       currentStudent.value = StudentModel.fromJson(data['user']);
 
@@ -288,19 +289,19 @@ class AuthController extends GetxController {
 
     final savedRole = await StorageService.to.getRole();
     final userData = await StorageService.to.getUser();
-    print("========== STORAGE DEBUG ==========");
-    print("Saved Role: $savedRole");
-    print("User Data:");
-    print(userData);
-    print("===================================");
+    debugPrint('========== STORAGE DEBUG ==========');
+    debugPrint('Saved Role: $savedRole');
+    debugPrint('User Data:');
+    debugPrint('$userData');
+    debugPrint('===================================');
     role.value = savedRole ?? '';
 
     if (savedRole == 'student' && userData != null) {
       currentStudent.value = StudentModel.fromJson(userData);
-      print("===== STUDENT DEBUG =====");
-      print("Face ID: ${currentStudent.value?.faceId}");
-      print("Face URL: ${currentStudent.value?.faceImageUrl}");
-      print("=========================");
+      debugPrint('===== STUDENT DEBUG =====');
+      debugPrint('Face ID: ${currentStudent.value?.faceId}');
+      debugPrint('Face URL: ${currentStudent.value?.faceImageUrl}');
+      debugPrint('=========================');
 
       Get.offAllNamed(AppConstants.routeStudentDashboard);
     } else if (savedRole == 'faculty' && userData != null) {

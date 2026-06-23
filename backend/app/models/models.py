@@ -28,7 +28,7 @@ class Student(Base):
     phone_number     = Column(String(20), nullable=True)
     password_hash    = Column(String(255), nullable=False)
     # Kept on student for quick-access; canonical record is in FaceProfile
-    face_id          = Column(String(255), nullable=True)         # AWS Rekognition FaceId
+    face_id          = Column(String(255), nullable=True)         # Legacy FaceId (unused after ArcFace migration)
     face_image_url   = Column(String(500), nullable=True)         # S3 URI
     created_at       = Column(DateTime, default=func.now())
 
@@ -36,6 +36,7 @@ class Student(Base):
     attendances   = relationship("Attendance", back_populates="student")
     face_profile  = relationship("FaceProfile", back_populates="student", uselist=False)
     student_faces = relationship("StudentFace", back_populates="student")
+    face_embeddings = relationship("FaceEmbedding", back_populates="student", cascade="all, delete-orphan")
 
 
 class Faculty(Base):
@@ -106,15 +107,16 @@ class BleBeacon(Base):
 class FaceProfile(Base):
     """
     Normalized face profile for a student.
-    Stores AWS Rekognition FaceId + S3 metadata.
+    Legacy table — kept for schema compatibility.
+    Primary face data is now stored in FaceEmbedding (ArcFace embeddings).
     """
     __tablename__ = "face_profiles"
 
     id            = Column(Integer, primary_key=True, index=True)
     student_id    = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, unique=True)
-    face_id       = Column(String(255), nullable=False)    # AWS Rekognition FaceId
-    s3_key        = Column(String(500), nullable=False)    # S3 object key
-    s3_url        = Column(String(500), nullable=False)    # Full S3 URI
+    face_id       = Column(String(255), nullable=False)    # Legacy ID (unused after ArcFace migration)
+    s3_key        = Column(String(500), nullable=False)    # Local storage key
+    s3_url        = Column(String(500), nullable=False)    # Local file URI
     confidence    = Column(Float, nullable=True)
     registered_at = Column(DateTime, default=func.now())
     updated_at    = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -126,22 +128,22 @@ class FaceProfile(Base):
 class StudentFace(Base):
     """
     Stores all 15 guided-pose face images per student.
-    Each row = one pose photo, one Rekognition FaceId, one S3 object.
+    Each row = one pose photo (local path) and its ArcFace embedding index.
 
     Folder structure: students/{student_id}/face_{pose_index:02d}.jpg
-    is_primary=True on the best poses indexed into Rekognition (3-5 max).
+    is_primary=True on best poses used for ArcFace embedding (3-5 max).
     """
     __tablename__ = "student_faces"
 
     id                = Column(Integer, primary_key=True, index=True)
     student_id        = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
-    face_id           = Column(String(255), nullable=True)   # AWS Rekognition FaceId (null if not indexed)
-    image_url         = Column(String(500), nullable=False)  # S3 URL
-    s3_key            = Column(String(500), nullable=False)  # S3 key
+    face_id           = Column(String(255), nullable=True)   # Legacy ID (unused after ArcFace migration)
+    image_url         = Column(String(500), nullable=False)  # Local file URL
+    s3_key            = Column(String(500), nullable=False)  # Local storage key
     pose_index        = Column(Integer, nullable=False)       # 1-15
     pose_type         = Column(String(50), nullable=False)    # front_face, left_15, etc.
-    confidence        = Column(Float, nullable=True)          # Rekognition indexing confidence
-    is_primary        = Column(Boolean, default=False)        # True = indexed in Rekognition
+    confidence        = Column(Float, nullable=True)          # ArcFace detection confidence
+    is_primary        = Column(Boolean, default=False)        # True = embedding stored in FaceEmbedding table
     registration_date = Column(DateTime, default=func.now())
 
     # Relationships
@@ -150,6 +152,22 @@ class StudentFace(Base):
     __table_args__ = (
         Index("uq_student_pose", "student_id", "pose_index", unique=True),
     )
+
+
+class FaceEmbedding(Base):
+    """
+    Stores local ArcFace embeddings per student pose (15 poses).
+    """
+    __tablename__ = "face_embeddings"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    student_id     = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    embedding_json = Column(Text, nullable=False)  # JSON string of the 512-dim float list
+    pose_name      = Column(String(50), nullable=False)
+    created_at     = Column(DateTime, default=func.now())
+
+    # Relationships
+    student = relationship("Student", back_populates="face_embeddings")
 
 
 class Subject(Base):
