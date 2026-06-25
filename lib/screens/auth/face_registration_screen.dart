@@ -274,18 +274,8 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
 
     try {
       final api = ApiClient.to;
-      final token = _auth.accessToken.value;
 
-      // Build multipart form with all frames
-      final fields = <String, dynamic>{};
-      for (int i = 0; i < _capturedPaths.length; i++) {
-        fields['files'] = await dio.MultipartFile.fromFile(
-          _capturedPaths[i],
-          filename: 'frame_${i.toString().padLeft(4, '0')}.jpg',
-        );
-      }
-
-      // Build the MultipartFile list correctly for multiple files
+      // Build multipart FormData with one entry per frame
       final List<dio.MultipartFile> frameFiles = [];
       for (final path in _capturedPaths) {
         frameFiles.add(
