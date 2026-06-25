@@ -269,11 +269,42 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
 
     setState(() {
       _state = _RegState.uploading;
-      _statusMessage = 'Processing ${_capturedPaths.length} frames...';
+      _statusMessage = 'Optimizing captured frames (1/${_capturedPaths.length})...';
     });
 
     try {
       final api = ApiClient.to;
+      final List<String> optimizedPaths = [];
+
+      // Compress frames sequentially to avoid OOM on both phone and server
+      for (int i = 0; i < _capturedPaths.length; i++) {
+        final path = _capturedPaths[i];
+        if (!mounted) return;
+        setState(() {
+          _statusMessage = 'Optimizing captured frames (${i + 1}/${_capturedPaths.length})...';
+        });
+        
+        try {
+          final file = File(path);
+          if (file.existsSync()) {
+            // Compress to 640px width which is standard for face detection
+            final compressed = await _camera.compressImageFile(file, width: 640, quality: 80);
+            optimizedPaths.add(compressed.path);
+          }
+        } catch (e) {
+          // Fallback to raw file if compression fails
+          optimizedPaths.add(path);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = 'Uploading ${optimizedPaths.length} optimized frames...';
+      });
+
+      // Replace captured paths with optimized ones for cleanup
+      _capturedPaths.clear();
+      _capturedPaths.addAll(optimizedPaths);
 
       // Build multipart FormData with one entry per frame
       final List<dio.MultipartFile> frameFiles = [];

@@ -55,25 +55,31 @@ class CameraService extends GetxService {
       }
 
       // Compress image for faster upload
-      final compressed = await _compressImage(file);
+      final compressed = await compressImageFile(file, width: 800, quality: 85);
       return compressed;
     } finally {
       isProcessing.value = false;
     }
   }
 
-  // ─── Compress image (max 800px width) ───────────────────
-  Future<File> _compressImage(File file) async {
+  // ─── Compress image file (custom width/quality) ─────────
+  Future<File> compressImageFile(File file, {int width = 640, int quality = 80}) async {
     final bytes = await file.readAsBytes();
     final image = img.decodeImage(bytes);
     if (image == null) return file;
 
-    final resized = img.copyResize(image, width: 800);
-    final compressed = img.encodeJpg(resized, quality: 85);
+    final resized = img.copyResize(image, width: width);
+    final compressed = img.encodeJpg(resized, quality: quality);
 
     final dir = await getTemporaryDirectory();
     final outPath = '${dir.path}/face_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final outFile = File(outPath)..writeAsBytesSync(compressed);
+    
+    // Attempt to delete original uncompressed file to save space
+    try {
+      if (file.existsSync()) file.deleteSync();
+    } catch (_) {}
+
     return outFile;
   }
 
