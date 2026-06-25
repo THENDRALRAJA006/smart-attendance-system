@@ -39,7 +39,7 @@ class CameraService extends GetxService {
   }
 
   // ─── Capture and return file ────────────────────────────
-  Future<File> captureImage() async {
+  Future<File> captureImage({bool compress = true}) async {
     if (controller == null || !controller!.value.isInitialized) {
       throw Exception('Camera not initialized');
     }
@@ -49,6 +49,10 @@ class CameraService extends GetxService {
     try {
       final xFile = await controller!.takePicture();
       final file = File(xFile.path);
+
+      if (!compress) {
+        return file;
+      }
 
       // Compress image for faster upload
       final compressed = await _compressImage(file);

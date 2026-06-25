@@ -9,7 +9,7 @@ services:
     name: smartattend-api
     runtime: python
     # ── Build: install deps + ensure headless opencv ──────────────
-    buildCommand: pip install -r requirements.txt && pip uninstall -y opencv-python opencv-python-headless && pip install opencv-python-headless==4.10.0.84
+    buildCommand: pip install -r requirements.txt && pip uninstall -y opencv-python opencv-python-headless && pip install opencv-python-headless==4.10.0.84 && python -c "from insightface.app import FaceAnalysis; app = FaceAnalysis(name='buffalo_l', root='./models_cache', allowed_modules=['detection', 'recognition']); app.prepare(ctx_id=-1)"
     # ── 1 worker: safe for Render free tier (512MB RAM)
     startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
     plan: free
@@ -67,4 +67,4 @@ services:
       - key: ARCFACE_REVIEW_THRESHOLD
         value: "0.65"         # 0.65–0.74 → manual_review; < 0.65 → rejected
       - key: ARCFACE_MODEL_PATH
-        value: "~/.insightface"
+        value: "./models_cache"

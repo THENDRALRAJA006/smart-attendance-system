@@ -45,3 +45,11 @@ dist/
 
 # ─── Migrations (keep versions tracked, but not pyc) ────────
 backend/migrations/**/__pycache__/
+
+# ─── Model Cache ─────────────────────────────────────────────
+backend/models_cache/
+
+# ─── Static files (Student profile photos) ───────────────────
+backend/static/faces/
+
+

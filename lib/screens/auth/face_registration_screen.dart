@@ -243,7 +243,7 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
     if (!_camera.isInitialized.value) return;
     if (_capturedFrameCount >= _targetFrames + 30) return; // safety cap
     try {
-      final file = await _camera.captureImage();
+      final file = await _camera.captureImage(compress: false);
       if (!mounted) return;
       _capturedPaths.add(file.path);
       setState(() {

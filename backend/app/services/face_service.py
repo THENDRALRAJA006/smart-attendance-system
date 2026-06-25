@@ -23,11 +23,18 @@ def get_face_analysis_app():
     global _app
     if _app is None:
         from insightface.app import FaceAnalysis
+        from app.core.config import settings
         logger.info("[ArcFace] Initializing InsightFace FaceAnalysis (buffalo_l)...")
+        
+        # Expand model path (supports ~ and relative paths)
+        root_path = os.path.abspath(os.path.expanduser(settings.ARCFACE_MODEL_PATH))
+        os.makedirs(root_path, exist_ok=True)
+        
         _app = FaceAnalysis(
             name="buffalo_l",
-            root="~/.insightface",
+            root=root_path,
             providers=["CPUExecutionProvider"],
+            allowed_modules=["detection", "recognition"],
         )
         _app.prepare(ctx_id=-1, det_size=(640, 640))
         logger.info("[ArcFace] InsightFace initialized successfully.")
@@ -35,11 +42,21 @@ def get_face_analysis_app():
 
 
 def decode_image_bytes(image_bytes: bytes) -> np.ndarray:
-    """Decode raw image bytes to an OpenCV BGR image."""
+    """Decode raw image bytes to an OpenCV BGR image and downscale to max 640px to conserve memory."""
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Failed to decode image bytes. Image may be corrupted.")
+    
+    # Downscale image if too large (saves memory during InsightFace processing on 512MB RAM tier)
+    max_dim = 640
+    h, w = img.shape[:2]
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        
     return img
 
 
