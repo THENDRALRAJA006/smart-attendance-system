@@ -2,8 +2,7 @@
 # SmartAttend — Attendance Route Tests
 # Tests: session creation, mark attendance, RSSI validation,
 #        duplicate prevention, live attendance, export
-# NOTE: AWS Rekognition removed. All face verification mocks
-#       now target face_service (ArcFace / InsightFace).
+# Face verification mocks target face_service (ArcFace / InsightFace).
 # ============================================================
 
 import pytest

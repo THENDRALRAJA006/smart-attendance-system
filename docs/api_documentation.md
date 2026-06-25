@@ -2,7 +2,7 @@
 
 **Base URL**: `http://localhost:8000`  
 **Auth**: JWT Bearer token — `Authorization: Bearer <access_token>`  
-**Version**: v3
+**Version**: v5
 
 ---
 
@@ -58,10 +58,33 @@ Exchange refresh token for a new access + refresh token pair.
 ---
 
 ### POST `/auth/face-register`
-Register student's face (multipart). Uploads to S3 and registers in Rekognition.
+Register student's face using ArcFace (InsightFace). Accepts a single image.
+Stores a 512-dim embedding in the `face_embeddings` table.
 
 **Form Data**: `file` (image/jpeg or image/png)  
 **Auth**: Student JWT required
+
+---
+
+### POST `/auth/face-register-auto` ⭐ Recommended
+Batch automatic face registration. Accepts 30–200 frames captured during guided movements.
+Backend filters blurry/duplicate frames and stores 30–50 unique embeddings.
+
+**Form Data**: `files[]` (multiple images — one per frame)  
+**Auth**: Student JWT required
+
+**Response 200**
+```json
+{
+  "success": true,
+  "stored": 47,
+  "total_input": 124,
+  "rejected_blurry": 18,
+  "rejected_no_face": 9,
+  "rejected_duplicate": 50,
+  "profile_url": "https://api.smartattend.app/static/faces/1.jpg"
+}
+```
 
 ---
 
@@ -191,7 +214,7 @@ Marks attendance after BLE + face verification.
 - `session_id` (int) — from WhatsApp deep link  
 - `rssi` (int) — BLE signal strength  
 
-**Validation steps**: Session check → RSSI check → Department check → Duplicate check → Rekognition face match (≥90%)
+**Validation steps**: Session check → RSSI check → Department check → Duplicate check → ArcFace cosine similarity (≥ 0.75)
 
 **Response 200 (success)**
 ```json
@@ -297,6 +320,7 @@ Includes `low_attendance_alerts` (students < 75%).
    ✓ RSSI ≥ -70 dBm
    ✓ Department match
    ✓ No duplicate
-   ✓ Rekognition ≥ 90%
+   ✓ ArcFace cosine similarity ≥ 0.75
 9. Attendance marked → success screen
+   tier: 'present' | 'manual_review' | 'rejected'
 ```

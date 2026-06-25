@@ -240,7 +240,7 @@ class AttendanceController extends GetxController {
       dev.log("[BLE] RSSI: ${capturedRssi.value} dBm");
       dev.log("=======================================");
 
-      dev.log("[AWS] Sending face to Rekognition...", name: 'AttendanceController');
+      dev.log("[ArcFace] Sending face for embedding verification...", name: 'AttendanceController');
 
       // Send to backend
       final response = await _verifyAndMark(
@@ -249,7 +249,7 @@ class AttendanceController extends GetxController {
       );
 
       dev.log(
-        "[AWS] Response received: "
+        "[ArcFace] Response received: "
         "match=${response['match']}, "
         "tier=${response['tier']}, "
         "confidence=${response['confidence']}, "

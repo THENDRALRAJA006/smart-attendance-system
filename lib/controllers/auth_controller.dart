@@ -1,7 +1,7 @@
 // ============================================================
-// SmartAttend — Auth Controller (v4)
+// SmartAttend — Auth Controller (v5)
 // Handles login, registration, role routing
-// v4: 15-pose face registration + liveness challenge
+// v5: Auto-capture batch face registration (ArcFace)
 // ============================================================
 
 import 'package:dio/dio.dart' as dio;
@@ -39,6 +39,15 @@ class AuthController extends GetxController {
   /// True when any user role is authenticated
   bool get isAuthenticated => role.value.isNotEmpty;
 
+  /// Access token for current session (used in direct API calls from screens)
+  final RxString _cachedToken = ''.obs;
+  String get accessToken => _cachedToken.value;
+
+  /// True if current student has completed face registration
+  bool get hasFaceRegistered =>
+      currentStudent.value?.faceId != null &&
+      currentStudent.value!.faceId!.isNotEmpty;
+
   // ─── LOGIN ──────────────────────────────────────────────
   Future<void> login(String email, String password, String userRole) async {
     isLoading.value = true;
@@ -56,6 +65,7 @@ class AuthController extends GetxController {
       final returnedRole = data['role'] as String;
 
       await StorageService.to.saveToken(token);
+      _cachedToken.value = token;
       if (refreshToken.isNotEmpty) {
         await StorageService.to.saveRefreshToken(refreshToken);
       }
@@ -125,6 +135,7 @@ class AuthController extends GetxController {
       final token = data['access_token'] as String;
       final refreshToken = data['refresh_token'] as String? ?? '';
       await StorageService.to.saveToken(token);
+      _cachedToken.value = token;
       if (refreshToken.isNotEmpty) {
         await StorageService.to.saveRefreshToken(refreshToken);
       }
@@ -159,7 +170,65 @@ class AuthController extends GetxController {
     }
   }
 
-  // ─── v4: FACE REGISTER — One Pose in 15-Step Sequence ────────────
+  // ─── v5: FACE REGISTER AUTO (Batch auto-capture) ─────────────────
+  /// Upload all auto-captured frames to POST /auth/face-register-auto.
+  /// Backend filters blurry/duplicate frames and stores 30–50 unique embeddings.
+  Future<Map<String, dynamic>?> registerFaceAuto(
+    List<String> framePaths,
+  ) async {
+    if (framePaths.isEmpty) {
+      errorMessage.value = 'No frames captured.';
+      return null;
+    }
+    isLoading.value = true;
+    errorMessage.value = '';
+    try {
+      final formData = dio.FormData();
+      for (final path in framePaths) {
+        formData.files.add(MapEntry(
+          'files',
+          await dio.MultipartFile.fromFile(path, filename: 'frame.jpg'),
+        ));
+      }
+      final res = await _api.postMultipart(
+        AppConstants.endpointFaceRegisterAuto,
+        formData,
+      );
+      final data = res.data as Map<String, dynamic>;
+      if (data['success'] == true) {
+        markFaceRegistered();
+      } else {
+        errorMessage.value = data['message'] ?? 'Face registration failed.';
+      }
+      return data;
+    } on dio.DioException catch (e) {
+      errorMessage.value = ApiException.fromDioError(e).message;
+      return null;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Mark the current student as face-registered in the reactive state.
+  /// Called after a successful auto-registration upload.
+  void markFaceRegistered() {
+    final student = currentStudent.value;
+    if (student != null) {
+      currentStudent.value = StudentModel(
+        id: student.id,
+        name: student.name,
+        regNo: student.regNo,
+        department: student.department,
+        year: student.year,
+        section: student.section,
+        email: student.email,
+        faceId: 'arcface_${student.id}',
+        faceImageUrl: student.faceImageUrl,
+        createdAt: student.createdAt,
+      );
+    }
+  }
+
   /// Upload and register a single pose image to the backend.
   /// Call once per pose step. Advances [currentPoseIndex] on success.
   ///

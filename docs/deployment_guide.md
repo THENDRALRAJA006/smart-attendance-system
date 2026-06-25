@@ -7,7 +7,6 @@
 | Python | 3.12+ | Backend runtime |
 | MySQL | 8.0+ | Database |
 | Flutter | 3.x | Mobile app |
-| AWS Account | — | Rekognition + S3 |
 | ESP32 board | — | BLE beacon hardware |
 
 ---
@@ -49,20 +48,22 @@ cp .env.example .env
 
 ```env
 # Database
-DATABASE_URL=mysql+pymysql://smartattend:your_password@localhost:3306/smart_attendance_db
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=smart_attendance
+DB_USER=smartattend
+DB_PASSWORD=your_password
 
 # JWT
-SECRET_KEY=your-super-secret-jwt-key-min-32-chars
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
+JWT_SECRET_KEY=your-super-secret-jwt-key-min-32-chars
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_HOURS=24
+JWT_REFRESH_EXPIRE_DAYS=7
 
-# AWS
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=ap-south-1
-AWS_S3_BUCKET=smartattend-faces
-AWS_REKOGNITION_COLLECTION=smartattend-faces
-REKOGNITION_CONFIDENCE_THRESHOLD=90.0
+# ArcFace (InsightFace) — cosine similarity thresholds (0.0-1.0)
+ARCFACE_SIMILARITY_THRESHOLD=0.75   # >= 0.75 → present
+ARCFACE_REVIEW_THRESHOLD=0.65       # 0.65-0.74 → manual_review
+ARCFACE_MODEL_PATH=~/.insightface
 
 # App
 APP_BASE_URL=https://smartattend.app
@@ -88,46 +89,25 @@ gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 
 ---
 
-## 3. AWS Setup
+## 3. ArcFace (InsightFace) Setup
 
-### S3 Bucket
+SmartAttend AI uses **InsightFace buffalo_l** for 100% local face recognition.
+**No AWS account, S3 bucket, Rekognition collection, or IAM keys are required.**
+
+### Model Download (automatic on first startup)
+
+The `buffalo_l` model (~200MB) downloads automatically to `~/.insightface/` on first run.
+
 ```bash
-aws s3api create-bucket \
-  --bucket smartattend-faces \
-  --region ap-south-1 \
-  --create-bucket-configuration LocationConstraint=ap-south-1
+# Pre-download model during build/deploy (optional, avoids cold-start latency)
+python -c "from insightface.app import FaceAnalysis; FaceAnalysis(name='buffalo_l').prepare(ctx_id=-1)"
 ```
 
-### Rekognition Collection
-```bash
-aws rekognition create-collection \
-  --collection-id smartattend-faces \
-  --region ap-south-1
-```
-
-### IAM Policy (minimum required)
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "rekognition:IndexFaces",
-        "rekognition:SearchFacesByImage",
-        "rekognition:DeleteFaces",
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:GetPresignedUrl"
-      ],
-      "Resource": [
-        "arn:aws:s3:::smartattend-faces/*",
-        "arn:aws:rekognition:ap-south-1:*:collection/smartattend-faces"
-      ]
-    }
-  ]
-}
-```
+### Performance on Render Free Tier (512MB RAM)
+- Model fits comfortably in RAM (~150MB loaded)
+- Inference: ~200ms per frame on CPU
+- Use `--workers 1` to avoid OOM errors
+- Batch registration (100-150 frames) processes in ~15-30 seconds
 
 ---
 
@@ -258,15 +238,15 @@ VALUES ('System Admin', 'admin@example.com', '<bcrypt_hash>');
 
 ## 7. Production Checklist
 
-- [ ] Set `SECRET_KEY` to a cryptographically random 64+ char string
+- [ ] Set `JWT_SECRET_KEY` to a cryptographically random 64+ char string
 - [ ] Configure HTTPS (Nginx + Let's Encrypt)
 - [ ] Set `ALLOWED_ORIGINS` to your production domain only
-- [ ] Restrict S3 bucket to backend IP
-- [ ] Set `ACCESS_TOKEN_EXPIRE_MINUTES=15` in production
+- [ ] Set `JWT_EXPIRE_HOURS=8` in production
 - [ ] Enable MySQL SSL connections
 - [ ] Configure automated database backups
 - [ ] Register Android App Link domain verification JSON
 - [ ] Configure iOS Universal Links AASA file
+- [ ] Pre-download InsightFace model before first deploy to avoid cold-start delay
 
 ---
 
@@ -310,7 +290,7 @@ server {
 7. **Faculty creates session**: POST `/faculty/create-session`
 8. **Faculty shares WhatsApp link**: Use returned `whatsapp_url`
 9. **Student registers**: POST `/auth/register`
-10. **Student registers face**: POST `/auth/face-register`
+10. **Student registers face**: POST `/auth/face-register-auto` (batch auto-capture)
 11. **Student taps link**: App opens with `session_id=42`
 12. **Student scans BLE**: `POST /attendance/verify`
 13. **Student takes selfie**: `POST /attendance/mark`

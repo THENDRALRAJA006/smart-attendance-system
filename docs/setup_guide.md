@@ -7,7 +7,6 @@
 | Flutter | ≥3.5.0 | Mobile app |
 | Python | ≥3.11 | Backend |
 | MySQL | ≥8.0 | Database |
-| AWS Account | — | Rekognition |
 | Arduino IDE | ≥2.0 | ESP32 firmware |
 
 ---
@@ -46,7 +45,8 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your DB credentials, AWS keys, JWT secret
+# Edit .env with your DB credentials and JWT secret
+# No AWS keys needed — face recognition is local (ArcFace)
 
 # Generate real password hashes for seed data
 python -c "from passlib.context import CryptContext; ctx = CryptContext(schemes=['bcrypt']); print(ctx.hash('Admin@123'))"
@@ -61,19 +61,32 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 3. AWS Rekognition Setup
+## 3. ArcFace (InsightFace) Setup
 
-1. **Create AWS Account** at https://aws.amazon.com
-2. **Create IAM User** with `AmazonRekognitionFullAccess` policy
-3. **Generate Access Keys** from IAM console
-4. **Add to `.env`**:
-   ```
-   AWS_ACCESS_KEY_ID=your_key_here
-   AWS_SECRET_ACCESS_KEY=your_secret_here
-   AWS_REGION=us-east-1
-   AWS_REKOGNITION_COLLECTION_ID=smart-attend-faces
-   ```
-5. The Rekognition collection is **auto-created** on first API startup
+SmartAttend AI uses **InsightFace buffalo_l** for local face recognition.
+**No AWS account, API key, or cloud service is required.**
+
+### Automatic Download
+On first startup, the backend automatically downloads the InsightFace `buffalo_l` model
+(~200MB) to `~/.insightface/`. This only happens once.
+
+```bash
+# Verify insightface is installed
+pip install insightface onnxruntime
+
+# Test model download manually (optional)
+python -c "from insightface.app import FaceAnalysis; app = FaceAnalysis(name='buffalo_l'); app.prepare(ctx_id=-1)"
+```
+
+### Environment Variables (add to `.env`)
+```env
+# ArcFace cosine similarity thresholds (0.0-1.0 scale)
+ARCFACE_SIMILARITY_THRESHOLD=0.75   # >= 0.75 → present
+ARCFACE_REVIEW_THRESHOLD=0.65       # 0.65-0.74 → manual_review; < 0.65 → rejected
+ARCFACE_MODEL_PATH=~/.insightface
+```
+
+> ✅ No AWS credentials, S3 buckets, or Rekognition collections are needed.
 
 ---
 

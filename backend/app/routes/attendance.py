@@ -111,15 +111,14 @@ async def verify_attendance(
     from app.models.models import FaceEmbedding
     registered_faces_count = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).count()
 
-    if registered_faces_count < 15:
+    if registered_faces_count < 1:
         logger.warning(
-            f"[REGISTRATION_VALIDATION] Registration incomplete for student={current_student.id}. "
-            f"Faces count={registered_faces_count} (needs 15)"
+            f"[REGISTRATION_VALIDATION] No face registered for student={current_student.id}."
         )
         return {
             "eligible": False,
             "step": "no_registration",
-            "message": f"Face registration incomplete ({registered_faces_count}/15 poses captured). Please register your face first.",
+            "message": "Face not registered. Please complete face registration first.",
             "session_id": session_id,
             "classroom_name": classroom_name,
             "classroom_uuid": classroom_uuid,
@@ -189,8 +188,8 @@ async def mark_attendance_endpoint(
     db: Session = Depends(get_db),
 ):
     """
-    Validate student proximity (BLE), verify face match (AWS Rekognition)
-    against the master face profile, and check the liveness challenge.
+    Validate student proximity (BLE), verify face match (ArcFace cosine similarity)
+    against stored embeddings, and check the liveness challenge.
     Marks attendance in DB upon success.
     """
     logger.info(
@@ -257,14 +256,13 @@ async def mark_attendance_endpoint(
     from app.models.models import FaceEmbedding
     registered_faces_count = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).count()
 
-    if registered_faces_count < 15:
+    if registered_faces_count < 1:
         logger.warning(
-            f"[REGISTRATION_VALIDATION] Registration incomplete/missing for student={current_student.id}. "
-            f"Faces count={registered_faces_count} (needs 15)"
+            f"[REGISTRATION_VALIDATION] No face registered for student={current_student.id}."
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Face profile registration incomplete ({registered_faces_count}/15 poses captured). Please register your face first.",
+            detail="Face not registered. Please complete face registration first.",
         )
 
     image_bytes = await file.read()

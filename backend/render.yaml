@@ -1,28 +1,25 @@
 # ============================================================
-# SmartAttend — Render Deployment Configuration (Production)
+# SmartAttend AI — Render Deployment Configuration (Production)
 # FastAPI backend → Render Web Service
-# AWS RDS MySQL → us-east-1 (Ohio region is closest to us-east-1)
+# RDS MySQL (us-east-1) — no AWS Rekognition dependency
 # ============================================================
 
 services:
   - type: web
     name: smartattend-api
     runtime: python
-    # ── Build: install deps + run Alembic migrations on every deploy ──
+    # ── Build: install deps + ensure headless opencv ──────────────
     buildCommand: pip install -r requirements.txt && pip uninstall -y opencv-python opencv-python-headless && pip install opencv-python-headless==4.10.0.84
     # ── 1 worker: safe for Render free tier (512MB RAM)
-    # ── Upgrade plan to 'starter' before increasing to 2+ workers
     startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
-    plan: free          # Upgrade to 'starter' for no sleep / better latency
+    plan: free
     region: ohio        # us-east-2 — closest Render region to AWS us-east-1 RDS
-    rootDir: backend    # Relative to repo root
+    rootDir: backend
 
-    # ── Health check ───────────────────────────────────────────────────
+    # ── Health check ────────────────────────────────────────────────
     healthCheckPath: /health
 
-    # ── Environment Variables ──────────────────────────────────────────
-    # Set secret values in Render Dashboard → Environment → Add Secret File
-    # The ones marked sync:false MUST be set manually in the Render dashboard.
+    # ── Environment Variables ───────────────────────────────────────
     envVars:
       # App
       - key: APP_NAME
@@ -32,15 +29,15 @@ services:
       - key: APP_BASE_URL
         sync: false           # Set to your Render URL after first deploy
       - key: ALLOWED_ORIGINS
-        sync: false           # e.g. https://smart-attendance-system-2-qthq.onrender.com,https://yourapp.com
+        sync: false
 
-      # Python runtime settings
+      # Python runtime
       - key: PYTHONDONTWRITEBYTECODE
         value: "1"
       - key: PYTHONUNBUFFERED
         value: "1"
 
-      # MySQL (AWS RDS)
+      # MySQL (RDS)
       - key: DB_HOST
         value: smart-attendance-db.cwh6sya6karz.us-east-1.rds.amazonaws.com
       - key: DB_PORT
@@ -64,6 +61,10 @@ services:
       - key: JWT_REFRESH_EXPIRE_DAYS
         value: "7"
 
-      # Face Recognition
-      - key: FACE_MATCH_THRESHOLD
-        value: "90.0"
+      # ArcFace (InsightFace) — cosine similarity thresholds (0.0–1.0 scale)
+      - key: ARCFACE_SIMILARITY_THRESHOLD
+        value: "0.75"         # >= 0.75 → present
+      - key: ARCFACE_REVIEW_THRESHOLD
+        value: "0.65"         # 0.65–0.74 → manual_review; < 0.65 → rejected
+      - key: ARCFACE_MODEL_PATH
+        value: "~/.insightface"

@@ -58,20 +58,26 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="SmartAttend API",
     description="""
-    ## SmartAttend — Intelligent Attendance System
-    
+    ## SmartAttend AI — Intelligent Attendance System
+
     A secure, multi-factor attendance system using:
     - **BLE** (ESP32 beacons) for proximity verification
-    - **AWS Rekognition** for face verification (15-pose registration, confidence tiers)
+    - **ArcFace (InsightFace)** for local face verification (auto-capture registration, cosine similarity)
     - **Anti-spoofing liveness** (BLINK / SMILE / TURN_LEFT / TURN_RIGHT challenges)
     - **JWT** for authentication
-    
+    - **Zero cloud dependency** for face recognition — fully on-device embeddings
+
+    ### Similarity Tiers
+    - `>= 0.75` → **present** (auto-marked)
+    - `0.65 – 0.74` → **manual_review** (marked, flagged for faculty)
+    - `< 0.65` → **rejected**
+
     ### Roles
     - **Student**: Register, mark attendance, view history
-    - **Faculty**: Create sessions, generate codes, view reports
+    - **Faculty**: Create sessions, generate QR codes, view reports
     - **Admin**: System management, analytics
     """,
-    version="4.0.0",
+    version="5.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,

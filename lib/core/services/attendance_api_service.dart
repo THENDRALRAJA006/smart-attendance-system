@@ -339,7 +339,8 @@ class AttendanceApiService {
   // STUDENT — Face Registration & Verification
   // ════════════════════════════════════════════════════════════
 
-  /// Register student's face with AWS Rekognition.
+  /// Register student's face using ArcFace (InsightFace) embeddings.
+  /// Sends image to POST /auth/face-register. Stores embedding in DB.
   Future<FaceRegisterResult> registerFace(File imageFile) async {
     try {
       final formData = FormData.fromMap({

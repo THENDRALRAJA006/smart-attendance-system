@@ -6,7 +6,9 @@ Create Date: 2026-06-23 12:00:00.000000
 """
 from typing import Sequence, Union
 
+# pyrefly: ignore [missing-import]
 import sqlalchemy as sa
+# pyrefly: ignore [missing-import]
 from alembic import op
 
 # revision identifiers, used by Alembic.

@@ -1,14 +1,14 @@
 // ============================================================
 // SmartAttend — Attendance Face Verification Screen (v5)
-// Manual Capture → Preview → Verify Attendance
+// Manual Capture → Preview → ArcFace Verify → Mark Attendance
 //
 // Flow:
 //   1. Camera preview (live)
-//   2. Student taps "Capture Selfie"
+//   2. Student taps "Capture & Verify Face"
 //   3. Image preview shown (Retake / Verify Attendance)
 //   4. Student taps "Verify Attendance"
 //   5. Optional liveness runs (non-blocking)
-//   6. AWS Rekognition CompareFaces
+//   6. ArcFace cosine similarity (local InsightFace)
 //   7. Navigate to result screen
 // ============================================================
 
@@ -37,7 +37,7 @@ enum _VerifyState {
   /// Optional liveness challenge running (non-blocking)
   livenessRunning,
 
-  /// Sending to AWS Rekognition + marking attendance
+  /// ArcFace embedding comparison + marking attendance
   verifying,
 }
 
@@ -399,7 +399,7 @@ class _AttendanceVerificationScreenState
                     _state == _VerifyState.livenessRunning)
                   _buildVerifyingOverlay(),
 
-                // ── AWS badge ─────────────────────────────
+                // ── ArcFace badge ─────────────────────────────────────
                 Positioned(
                   bottom: 14,
                   left: 0,

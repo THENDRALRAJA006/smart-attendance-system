@@ -1,10 +1,11 @@
 # ============================================================
-# SmartAttend — Auth Routes (v4)
+# SmartAttend — Auth Routes (v5)
 # POST /auth/register, /auth/login, /auth/refresh
-# POST /auth/face-register, /auth/face-verify        (legacy)
-# POST /auth/face-register-multi                      (v4: 15-pose)
-# GET  /auth/liveness-challenge                       (v4: anti-spoof)
-# POST /auth/liveness-verify                          (v4: anti-spoof)
+# POST /auth/face-register          (single-pose, legacy compat)
+# POST /auth/face-register-auto     (v5: auto-capture batch)
+# POST /auth/face-register-multi    (v4: 15-pose, legacy)
+# GET  /auth/liveness-challenge     (anti-spoof)
+# POST /auth/liveness-verify        (anti-spoof)
 # GET  /auth/me
 # ============================================================
 
@@ -283,7 +284,7 @@ async def refresh_token(
     }
 
 
-# ─── POST /auth/face-register ─────────────────────────────────
+# ─── POST /auth/face-register ───────────────────────────────────
 
 @router.post("/face-register")
 async def register_face(
@@ -292,10 +293,9 @@ async def register_face(
     db: Session = Depends(get_db),
 ):
     """
-    Upload and register student's face.
-    1. Uploads image to AWS S3
-    2. Registers face in AWS Rekognition collection
-    3. Stores face_id and S3 URL in database (students + face_profiles)
+    Upload a single image and register the student's face (ArcFace embedding).
+    Stores one embedding in face_embeddings table.
+    For richer multi-sample registration, use POST /auth/face-register-auto.
 
     Requires: authenticated student JWT.
     """
@@ -359,6 +359,87 @@ async def register_face(
         "message": "Face registered successfully",
         "face_id": face_id,
         "s3_url":  s3_url,
+    }
+
+
+# ─── POST /auth/face-register-auto ──────────────────────────────
+
+@router.post("/face-register-auto", tags=["Authentication"])
+async def register_face_auto(
+    files: List[UploadFile] = File(...),
+    current_student: Student = Depends(get_current_student),
+    db: Session = Depends(get_db),
+):
+    """
+    v5: Automatic batch face registration.
+
+    Accepts 30–150 frames captured automatically by the Flutter app during
+    guided movement (front, smile, blink, left, right, up, down, head rotation).
+
+    Processing pipeline (all server-side, no images stored permanently):
+    1. Decode each frame
+    2. Reject blurry frames (Laplacian sharpness < 80)
+    3. Detect face — skip frames with 0 or 2+ faces
+    4. De-duplicate: skip frames with cosine_sim >= 0.98 to already-accepted frames
+    5. Store up to 50 unique ArcFace embeddings in face_embeddings table
+    6. Save profile picture from sharpest frame only
+    7. Discard all raw bytes — no permanent image storage
+
+    Returns: success, stored count, rejection breakdown, message
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail="At least 1 frame is required.")
+    if len(files) > 200:
+        raise HTTPException(status_code=400, detail="Maximum 200 frames allowed per batch.")
+
+    images_bytes: list[bytes] = []
+    for f in files:
+        if not f.content_type or not f.content_type.startswith("image/"):
+            continue
+        data = await f.read()
+        if data:
+            images_bytes.append(data)
+
+    if not images_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="All submitted frames are empty or invalid.",
+        )
+
+    result = face_service.register_face_embeddings_batch(
+        db=db,
+        student_id=current_student.id,
+        images_bytes=images_bytes,
+    )
+
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=result.get("message", "Batch face registration failed."),
+        )
+
+    face_id = f"arcface_{current_student.id}"
+    from app.core.config import settings as _settings
+    profile_url = f"{_settings.APP_BASE_URL}/static/faces/{current_student.id}.jpg"
+    current_student.face_id = face_id
+    current_student.face_image_url = profile_url
+    db.commit()
+
+    logger.info(
+        f"[ArcFace] Auto-registration complete: student={current_student.id}, "
+        f"stored={result['stored']} embeddings from {result['total_input']} frames"
+    )
+
+    return {
+        "success": True,
+        "student_id": current_student.id,
+        "stored": result["stored"],
+        "total_input": result["total_input"],
+        "rejected_no_face": result["rejected_no_face"],
+        "rejected_blurry": result["rejected_blurry"],
+        "rejected_duplicate": result["rejected_duplicate"],
+        "profile_url": profile_url,
+        "message": result["message"],
     }
 
 
@@ -468,10 +549,9 @@ async def register_face_pose(
 
     Flow:
     1. Quality-check frame (brightness, sharpness, single face)
-    2. Upload to S3 at students/{student_id}/face_{pose_index:02d}.jpg
-    3. Index in Rekognition for primary poses (1,2,4,13,15)
-    4. Upsert row in student_faces table
-    5. On pose 15: promote best face_id to students + face_profiles
+    2. Extract ArcFace embedding and store in face_embeddings table
+    3. Upsert row in student_faces table (legacy compatibility)
+    4. On pose 15: promote face_id to students table
     """
     if not 1 <= pose_index <= 15:
         raise HTTPException(status_code=400, detail="pose_index must be 1-15")
@@ -564,13 +644,12 @@ async def register_face_pose(
         "s3_url": s3_url,
         "face_id": face_id,
         "confidence": confidence,
-        "indexed_in_rekognition": True,
         "is_final": pose_index == 15,
         "next_pose": next_pose,
         "message": (
             f"Pose {pose_index}/15 captured!"
             if pose_index < 15
-            else "All 15 poses registered! Face ID active."
+            else "All 15 poses registered! Face profile active."
         ),
         "quality": quality,
     }

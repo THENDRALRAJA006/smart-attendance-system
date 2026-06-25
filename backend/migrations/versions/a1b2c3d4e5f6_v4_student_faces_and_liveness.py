@@ -10,7 +10,9 @@ Changes:
 """
 from typing import Sequence, Union
 
+# pyrefly: ignore [missing-import]
 import sqlalchemy as sa
+# pyrefly: ignore [missing-import]
 from alembic import op
 
 
@@ -34,13 +36,13 @@ def upgrade() -> None:
         "student_faces",
         sa.Column("id",                sa.Integer(),     nullable=False),
         sa.Column("student_id",        sa.Integer(),     nullable=False),
-        sa.Column("face_id",           sa.String(255),   nullable=True),    # AWS Rekognition FaceId
-        sa.Column("image_url",         sa.String(500),   nullable=False),   # S3 URL
-        sa.Column("s3_key",            sa.String(500),   nullable=False),   # S3 object key
+        sa.Column("face_id",           sa.String(255),   nullable=True),    # Legacy field (unused after ArcFace migration)
+        sa.Column("image_url",         sa.String(500),   nullable=True),    # Legacy field (unused)
+        sa.Column("s3_key",            sa.String(500),   nullable=True),    # Legacy field (unused)
         sa.Column("pose_index",        sa.Integer(),     nullable=False),   # 1-15
         sa.Column("pose_type",         sa.String(50),    nullable=False),   # front_face, left_15, etc.
-        sa.Column("confidence",        sa.Float(),       nullable=True),    # Rekognition indexing confidence
-        sa.Column("is_primary",        sa.Boolean(),     nullable=True,     server_default="0"),  # True = indexed in Rekognition
+        sa.Column("confidence",        sa.Float(),       nullable=True),    # Detection confidence
+        sa.Column("is_primary",        sa.Boolean(),     nullable=True,     server_default="0"),  # Best pose flag
         sa.Column("registration_date", sa.DateTime(),    nullable=True,     server_default=sa.text("CURRENT_TIMESTAMP")),
 
         # Primary key

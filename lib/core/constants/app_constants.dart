@@ -10,7 +10,7 @@ class AppConstants {
   static const String baseUrl = ApiConfig.baseUrl;
 
   static const int connectTimeout = 60;  // seconds
-  static const int receiveTimeout = 120; // seconds — extended for AWS Rekognition & Render cold starts
+  static const int receiveTimeout = 120; // seconds — extended for InsightFace inference & Render cold starts
 
   // ─── JWT ────────────────────────────────────────────────
   static const String tokenKey       = 'smart_attend_jwt';
@@ -23,9 +23,11 @@ class AppConstants {
   static const int    bleScanDuration = 10; // seconds
   static const String bleServicePrefix = 'SMART_ATTEND'; // beacons start with this
 
-  // ─── Face Recognition ───────────────────────────────────
-  static const double faceConfidenceThreshold = 90.0; // AWS Rekognition min %
-  static const int    maxFaceCaptureAttempts  = 3;
+  // ─── Face Recognition (ArcFace) ─────────────────────────
+  /// Cosine similarity thresholds (0.0–1.0 scale)
+  static const double arcFaceSimilarityThreshold = 0.75; // >= 0.75 → present
+  static const double arcFaceReviewThreshold      = 0.65; // 0.65–0.74 → manual_review; < 0.65 → rejected
+  static const int    maxFaceCaptureAttempts       = 3;
 
   // ─── Session ────────────────────────────────────────────
   static const int attendanceCodeLength = 6;
@@ -56,8 +58,9 @@ class AppConstants {
   static const String endpointLogin        = '/auth/login';
   static const String endpointRefreshToken = '/auth/refresh';
   static const String endpointMe           = '/auth/me';
-  static const String endpointFaceRegister = '/auth/face-register';
-  static const String endpointFaceVerify   = '/auth/face-verify';
+  static const String endpointFaceRegister     = '/auth/face-register';
+  static const String endpointFaceRegisterAuto = '/auth/face-register-auto'; // v5: batch auto-capture
+  static const String endpointFaceVerify       = '/auth/face-verify';
 
   // Student
   static const String endpointStudentDashboard  = '/student/dashboard';

@@ -37,8 +37,6 @@ class Settings(BaseSettings):
     JWT_REFRESH_SECRET_KEY: str = "change-me-refresh-in-production"
     JWT_REFRESH_EXPIRE_DAYS: int = 7
 
-
-
     # ─── CORS ──────────────────────────────────────────────
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
 
@@ -46,19 +44,21 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
-    # ─── Face Recognition ──────────────────────────────────
-    FACE_MATCH_THRESHOLD: float = 90.0
+    # ─── ArcFace (InsightFace) ─────────────────────────────
+    # Cosine similarity thresholds (0.0–1.0 range, NOT percentages)
+    # >= ARCFACE_SIMILARITY_THRESHOLD → "present"
+    # >= ARCFACE_REVIEW_THRESHOLD     → "manual_review"
+    # <  ARCFACE_REVIEW_THRESHOLD     → "rejected"
+    ARCFACE_SIMILARITY_THRESHOLD: float = 0.75
+    ARCFACE_REVIEW_THRESHOLD: float = 0.65
+    ARCFACE_MODEL_PATH: str = "~/.insightface"
 
-    @field_validator("FACE_MATCH_THRESHOLD")
+    @field_validator("ARCFACE_SIMILARITY_THRESHOLD", "ARCFACE_REVIEW_THRESHOLD")
     @classmethod
-    def validate_threshold(cls, v: float) -> float:
-        if v not in (80.0, 85.0, 90.0):
-            raise ValueError("FACE_MATCH_THRESHOLD must be 80.0, 85.0, or 90.0")
+    def validate_similarity_threshold(cls, v: float) -> float:
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("ArcFace similarity thresholds must be between 0.0 and 1.0")
         return v
-
-    @property
-    def FACE_CONFIDENCE_THRESHOLD(self) -> float:
-        return self.FACE_MATCH_THRESHOLD
 
     class Config:
         env_file = ".env"
