@@ -1,15 +1,18 @@
 // ============================================================
-// SmartAttend — Attendance Face Verification Screen (v5)
+// SmartAttend — Attendance Face Verification Screen (v6)
 // Manual Capture → Preview → ArcFace Verify → Mark Attendance
 //
 // Flow:
 //   1. Camera preview (live)
-//   2. Student taps "Capture & Verify Face"
+//   2. Student taps "Capture & Verify Face"   ← NEVER auto-starts
 //   3. Image preview shown (Retake / Verify Attendance)
 //   4. Student taps "Verify Attendance"
 //   5. Optional liveness runs (non-blocking)
 //   6. ArcFace cosine similarity (local InsightFace)
 //   7. Navigate to result screen
+//
+// v6: alreadyMarked guard, step indicator (3 of 3),
+//     qr_face vs ble_face method hint
 // ============================================================
 
 import 'dart:async';
@@ -22,6 +25,7 @@ import 'package:get/get.dart';
 
 import '../../controllers/attendance_controller.dart';
 import '../../controllers/auth_controller.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/services/camera_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/gradient_button.dart';
@@ -66,12 +70,35 @@ class _AttendanceVerificationScreenState
   bool _livenessVerified = false;
   String? _livenessToken;
 
+  // ─── From QR or BLE path ───────────────────────────────────
+  bool _fromQr = false;
+
   // ─── Lifecycle ─────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
     dev.log('[LOG] Verification screen opened', name: 'VerifyScreen');
-    _initCamera();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = Get.arguments as Map<String, dynamic>?;
+      _fromQr = args?['from_qr'] == true;
+
+      // ─── Already-marked guard ───────────────────────────────
+      if (_attendance.result.value == AttendanceResult.alreadyMarked) {
+        dev.log('[VERIFY] Already marked — redirecting to result', name: 'VerifyScreen');
+        Get.offNamed(AppConstants.routeAttendanceResult);
+        return;
+      }
+
+      // ─── Block if alreadyMarked on session ─────────────────
+      if (_attendance.alreadyMarked) {
+        dev.log('[VERIFY] Session already marked — showing guard', name: 'VerifyScreen');
+        // Stay on screen but show the guard UI (handled in build)
+        return;
+      }
+
+      _initCamera();
+    });
   }
 
   Future<void> _initCamera() async {
@@ -211,11 +238,14 @@ class _AttendanceVerificationScreenState
       return;
     }
 
+    final methodHint = _fromQr ? 'qr_face' : 'ble_face';
+
     dev.log(
         '[ArcFace] Sending to local ArcFace — image=${image.path}, '
         'session=${_attendance.deepLinkSessionId.value}, '
         'rssi=${_attendance.capturedRssi.value}, '
-        'liveness_verified=$_livenessVerified',
+        'liveness_verified=$_livenessVerified, '
+        'method=$methodHint',
         name: 'VerifyScreen');
 
     if (!mounted) return;
@@ -227,6 +257,7 @@ class _AttendanceVerificationScreenState
     await _attendance.verifyFace(
       imageFile: image,
       livenessToken: _livenessToken,
+      attendanceMethodHint: methodHint,
     );
     // Controller handles navigation to result screen
   }
@@ -241,6 +272,11 @@ class _AttendanceVerificationScreenState
   // ─── Build ──────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    // Already-marked guard UI
+    if (_attendance.alreadyMarked) {
+      return _buildAlreadyMarkedScaffold();
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
@@ -248,6 +284,11 @@ class _AttendanceVerificationScreenState
           child: Column(
             children: [
               _buildHeader(),
+              // Step indicator
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+                child: _buildStepProgress(),
+              ),
               Expanded(child: _buildCameraArea()),
               _buildStatusCard(),
               _buildActionBar(),
@@ -255,6 +296,149 @@ class _AttendanceVerificationScreenState
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAlreadyMarkedScaffold() {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: AppTheme.textPrimary, size: 20),
+                      onPressed: () => Get.back(),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            gradient: AppTheme.primaryGradient,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primary.withValues(alpha: 0.35),
+                                blurRadius: 24,
+                                spreadRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.check_circle_rounded,
+                              color: Colors.white, size: 52),
+                        ),
+                        const SizedBox(height: 28),
+                        const Text(
+                          'Attendance Already Marked',
+                          style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'You have already marked attendance for this session. No further action needed.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppTheme.textSecondary,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 36),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => Get.until(
+                                (r) => r.settings.name == AppConstants.routeStudentDashboard),
+                            icon: const Icon(Icons.home_rounded),
+                            label: const Text('Back to Dashboard'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Step Progress Bar ────────────────────────────────────
+  Widget _buildStepProgress() {
+    final steps = ['BLE Scan', 'Choose', 'Verify'];
+    return Row(
+      children: List.generate(steps.length, (i) {
+        final isCompleted = i < 2; // Steps 0 and 1 are done
+        final isCurrent   = i == 2;
+        return Expanded(
+          child: Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: isCompleted
+                      ? AppTheme.success
+                      : isCurrent
+                          ? AppTheme.primary
+                          : AppTheme.textHint.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: isCompleted
+                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 12)
+                      : Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            color: isCurrent ? Colors.white : AppTheme.textHint,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10,
+                          ),
+                        ),
+                ),
+              ),
+              if (i < steps.length - 1)
+                Expanded(
+                  child: Container(
+                    height: 2,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    color: isCompleted
+                        ? AppTheme.success
+                        : AppTheme.textHint.withValues(alpha: 0.2),
+                  ),
+                ),
+            ],
+          ),
+        );
+      }),
     );
   }
 
@@ -276,9 +460,9 @@ class _AttendanceVerificationScreenState
                 crossAxisAlignment: CrossAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'Face Verification',
-                    style: TextStyle(
+                  Text(
+                    _fromQr ? 'Face Verification (QR Path)' : 'Face Verification',
+                    style: const TextStyle(
                       color: AppTheme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.w700,

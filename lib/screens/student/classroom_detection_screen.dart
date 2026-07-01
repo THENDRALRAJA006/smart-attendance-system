@@ -1,5 +1,7 @@
 // ============================================================
-// SmartAttend — Classroom Detection Screen (BLE Scanner)
+// SmartAttend — Classroom Detection Screen (v2)
+// BLE Scanner → Classroom Selection → VerificationMethodScreen
+// v2: Session info banner from activeSession, improved empty state
 // ============================================================
 
 import 'package:flutter/material.dart';
@@ -10,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/glassmorphism_card.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/signal_strength_widget.dart';
+
 
 class ClassroomDetectionScreen extends StatefulWidget {
   const ClassroomDetectionScreen({super.key});
@@ -76,10 +79,87 @@ class _ClassroomDetectionScreenState extends State<ClassroomDetectionScreen>
                 ),
               ),
 
+              // ─── Active Session Banner ────────────────────────
+              Obx(() {
+                final session = _attendance.activeSession.value;
+                if (session == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.success.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: AppTheme.success.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: AppTheme.success,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.success.withValues(alpha: 0.6),
+                                blurRadius: 6,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                session.subjectName,
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                'Session active in ${session.classroomName}',
+                                style: const TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppTheme.success.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: AppTheme.success,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+
               const SizedBox(height: 8),
 
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
                   'Scanning for nearby classrooms via Bluetooth',
                   style: TextStyle(
@@ -192,19 +272,24 @@ class _ClassroomDetectionScreenState extends State<ClassroomDetectionScreen>
                             ),
                             const SizedBox(height: 16),
                             const Text(
-                              'No SmartAttend beacons detected',
+                              'No SmartAttend Beacons Detected',
                               style: TextStyle(
                                 color: AppTheme.textSecondary,
                                 fontSize: 15,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              'Make sure you are inside the classroom\nand Bluetooth is enabled',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: AppTheme.textHint,
-                                fontSize: 13,
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'Make sure you are inside the classroom and your Bluetooth is enabled. Tap Rescan to try again.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppTheme.textHint,
+                                  fontSize: 13,
+                                  height: 1.5,
+                                ),
                               ),
                             ),
                           ],
@@ -224,8 +309,9 @@ class _ClassroomDetectionScreenState extends State<ClassroomDetectionScreen>
                           borderColor: classroom.isInRange
                               ? AppTheme.success.withValues(alpha: 0.3)
                               : AppTheme.error.withValues(alpha: 0.3),
-                          onTap: () =>
-                              _attendance.selectClassroom(classroom),
+                          onTap: () => _attendance.isLoading.value
+                              ? null
+                              : _attendance.selectClassroom(classroom),
                           child: Row(
                             children: [
                               // ─── Room icon ─────────────────────
@@ -307,11 +393,20 @@ class _ClassroomDetectionScreenState extends State<ClassroomDetectionScreen>
                                   ),
                                   if (classroom.isInRange) ...[
                                     const SizedBox(height: 8),
-                                    const Icon(
-                                      Icons.arrow_forward_ios_rounded,
-                                      color: AppTheme.primary,
-                                      size: 14,
-                                    ),
+                                    Obx(() => _attendance.isLoading.value
+                                        ? const SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppTheme.primary,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.arrow_forward_ios_rounded,
+                                            color: AppTheme.primary,
+                                            size: 14,
+                                          )),
                                   ],
                                 ],
                               ),

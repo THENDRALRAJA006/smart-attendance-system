@@ -39,11 +39,13 @@ class AppConstants {
   static const String routeFaceRegister         = '/face-register';
   static const String routeStudentDashboard     = '/student/dashboard';
   static const String routeClassroomDetection   = '/student/classroom';
+  static const String routeVerificationMethod   = '/student/verify-method';
   static const String routeAttendanceVerification = '/student/verify';
+  static const String routeQrVerification       = '/student/qr-verify';
   static const String routeAttendanceResult     = '/student/result';
   static const String routeAttendanceHistory    = '/student/history';
   static const String routeReports              = '/student/reports';
-  static const String routeQrScanner           = '/student/qr-scan';
+  static const String routeQrScanner            = '/student/qr-verify'; // alias
   static const String routeProfile              = '/profile';
   static const String routeFacultyDashboard     = '/faculty/dashboard';
   static const String routeQrGenerator         = '/faculty/qr-generate';
@@ -65,9 +67,12 @@ class AppConstants {
   // Student
   static const String endpointStudentDashboard  = '/student/dashboard';
   static const String endpointAttendanceHistory = '/student/attendance-history';
-  static const String endpointAttendanceVerify  = '/attendance/verify';
-  static const String endpointAttendanceMark    = '/attendance/mark';
-  static const String endpointAttendanceMarkQr  = '/attendance/mark-qr';
+  static const String endpointAttendanceVerify       = '/attendance/verify';
+  static const String endpointAttendanceMark         = '/attendance/mark';
+  static const String endpointAttendanceMarkQr       = '/attendance/mark-qr';
+  static const String endpointCheckActiveSession     = '/attendance/check-active-session';
+  static const String endpointSessionStatus          = '/attendance/session-status';
+  static const String endpointValidateQr             = '/attendance/validate-qr';
 
   // Faculty
   static const String endpointFacultyDashboard  = '/faculty/dashboard';

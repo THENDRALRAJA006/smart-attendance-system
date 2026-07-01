@@ -13,6 +13,7 @@ class GradientButton extends StatelessWidget {
   final IconData? icon;
   final double height;
   final double borderRadius;
+  final String? id;
 
   const GradientButton({
     super.key,
@@ -23,6 +24,7 @@ class GradientButton extends StatelessWidget {
     this.icon,
     this.height = 54,
     this.borderRadius = 14,
+    this.id,
   });
 
   @override

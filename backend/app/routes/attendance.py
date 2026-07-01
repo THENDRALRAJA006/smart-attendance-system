@@ -1,9 +1,11 @@
 # ============================================================
-# SmartAttend — Attendance Routes (v4)
-# POST /attendance/verify      — Pre-check eligibility & range
-# POST /attendance/mark        — Face match (ArcFace) + liveness verify
-# POST /attendance/mark-qr     — Scan QR code fallback
-# GET  /attendance/active-session — Lookup active session by BLE UUID
+# SmartAttend — Attendance Routes (v5)
+# GET  /attendance/check-active-session  — Dashboard session status (no BLE needed)
+# POST /attendance/validate-qr           — Validate QR token, return session info
+# POST /attendance/verify                — Pre-check eligibility & range
+# POST /attendance/mark                  — Face match (ArcFace) + liveness verify
+# POST /attendance/mark-qr               — Scan QR code fallback (legacy)
+# GET  /attendance/active-session        — Lookup active session by BLE UUID
 # ============================================================
 
 import logging
@@ -16,7 +18,7 @@ from jose import jwt, JWTError
 from app.core.database import get_db
 from app.core.dependencies import get_current_student
 from app.core.config import settings
-from app.models.models import Student, Classroom, Subject, Session as SessionModel
+from app.models.models import Student, Classroom, Subject, Session as SessionModel, Attendance
 from app.services.attendance_service import (
     get_session_by_id,
     check_duplicate_attendance,
@@ -35,7 +37,188 @@ class QrMarkRequest(BaseModel):
     qr_token: str
 
 
-# ─── GET /attendance/active-session ──────────────────────────
+class QrValidateRequest(BaseModel):
+    qr_token: str
+
+
+# ─── GET /attendance/check-active-session ─────────────────────
+@router.get("/check-active-session")
+async def check_active_session_for_student(
+    db: Session = Depends(get_db),
+    current_student: Student = Depends(get_current_student),
+):
+    """
+    Dashboard endpoint — checks if there is any active attendance session
+    for the student's department, year, and section.
+    No BLE UUID required. Used to show/hide 'Start Attendance' button.
+    """
+    logger.info(
+        f"[SESSION_CHECK] dept={current_student.department}, "
+        f"year={current_student.year}, section={current_student.section}"
+    )
+
+    # Find an active session targeting this student's dept/year/section
+    active_session = (
+        db.query(SessionModel)
+        .filter(
+            SessionModel.is_active == True,
+            SessionModel.department == current_student.department,
+            SessionModel.year == current_student.year,
+            SessionModel.section == current_student.section,
+        )
+        .first()
+    )
+
+    if not active_session:
+        return {"is_active": False, "session_id": None}
+
+    # Check if student already marked attendance for this session
+    already_marked = (
+        db.query(Attendance)
+        .filter(
+            Attendance.student_id == current_student.id,
+            Attendance.session_id == active_session.id,
+        )
+        .first()
+        is not None
+    )
+
+    subject = db.query(Subject).filter(Subject.id == active_session.subject_id).first()
+    classroom = db.query(Classroom).filter(Classroom.id == active_session.classroom_id).first()
+
+    return {
+        "is_active": True,
+        "session_id": active_session.id,
+        "subject_name": subject.subject_name if subject else "Unknown Subject",
+        "classroom_name": classroom.room_name if classroom else "Unknown Classroom",
+        "classroom_uuid": classroom.ble_uuid if classroom else "",
+        "already_marked": already_marked,
+        "face_registered": True,  # Simplified — detailed check in /verify
+    }
+
+
+# ─── GET /attendance/session-status ──────────────────────────
+@router.get("/session-status")
+async def get_session_status(
+    db: Session = Depends(get_db),
+    current_student: Student = Depends(get_current_student),
+):
+    """
+    Lightweight polling endpoint — returns only is_active + already_marked.
+    Used by the dashboard timer to detect session start/end without
+    fetching full session details. Lower cost than /check-active-session.
+    """
+    active_session = (
+        db.query(SessionModel)
+        .filter(
+            SessionModel.is_active == True,
+            SessionModel.department == current_student.department,
+            SessionModel.year == current_student.year,
+            SessionModel.section == current_student.section,
+        )
+        .first()
+    )
+
+    if not active_session:
+        return {"is_active": False, "already_marked": False}
+
+    already_marked = (
+        db.query(Attendance)
+        .filter(
+            Attendance.student_id == current_student.id,
+            Attendance.session_id == active_session.id,
+        )
+        .first()
+        is not None
+    )
+
+    return {
+        "is_active": True,
+        "session_id": active_session.id,
+        "already_marked": already_marked,
+    }
+
+
+# ─── POST /attendance/validate-qr ─────────────────────────────
+@router.post("/validate-qr")
+async def validate_qr_token(
+    request: QrValidateRequest,
+    current_student: Student = Depends(get_current_student),
+    db: Session = Depends(get_db),
+):
+    """
+    Validates a faculty-generated QR token and returns session info.
+    Does NOT mark attendance — that happens after face verification.
+    Used by the QR verification screen before navigating to face capture.
+    """
+    logger.info(f"[VALIDATE_QR] Student={current_student.id} validating QR token")
+
+    # Decode and verify token
+    try:
+        payload = jwt.decode(
+            request.qr_token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired QR code. Please scan a fresh one from your faculty."
+        )
+
+    if payload.get("type") != "qr_attendance":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid QR token type. Only SmartAttend QR codes are accepted."
+        )
+
+    session_id = payload.get("session_id")
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session ID missing from QR token."
+        )
+
+    # Validate session exists and is active
+    session = get_session_by_id(db, session_id)
+
+    # Check for duplicate attendance
+    try:
+        check_duplicate_attendance(db, current_student.id, session_id)
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You have already marked attendance for this session."
+        )
+
+    # Check student eligibility
+    try:
+        validate_student_eligibility(db, current_student, session)
+    except HTTPException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=e.detail
+        )
+
+    subject = db.query(Subject).filter(Subject.id == session.subject_id).first()
+    classroom = db.query(Classroom).filter(Classroom.id == session.classroom_id).first()
+
+    logger.info(
+        f"[VALIDATE_QR] Valid QR for session={session_id}, "
+        f"subject={subject.subject_name if subject else 'Unknown'}"
+    )
+
+    return {
+        "valid": True,
+        "session_id": session_id,
+        "subject_name": subject.subject_name if subject else "Unknown Subject",
+        "classroom_name": classroom.room_name if classroom else "Unknown Classroom",
+        "classroom_uuid": classroom.ble_uuid if classroom else "",
+        "message": "QR code verified. Please proceed with face verification."
+    }
+
+
+
 @router.get("/active-session")
 async def get_active_session(
     classroom_uuid: str,
@@ -184,6 +367,7 @@ async def mark_attendance_endpoint(
     session_id: int = Form(...),
     rssi: int = Form(...),
     liveness_token: str | None = Form(None),
+    attendance_method_hint: str | None = Form(None),
     current_student: Student = Depends(get_current_student),
     db: Session = Depends(get_db),
 ):
@@ -322,6 +506,19 @@ async def mark_attendance_endpoint(
         f"session={session_id}, tier={tier}, "
         f"liveness={liveness_verified}, rssi={rssi}"
     )
+    # Determine attendance method based on hint and RSSI
+    # qr_face = validated QR token first, then face verification
+    # ble_face = BLE proximity verified first, then face verification
+    if attendance_method_hint == "qr_face" and rssi == 0:
+        resolved_method = "qr_face"
+    else:
+        resolved_method = "ble_face"
+
+    logger.info(
+        f"[ATTENDANCE_MARK] method_hint={attendance_method_hint}, "
+        f"rssi={rssi}, resolved_method={resolved_method}"
+    )
+
     record = mark_attendance(
         db=db,
         student_id=current_student.id,
@@ -330,7 +527,7 @@ async def mark_attendance_endpoint(
         face_confidence=confidence,
         liveness_verified=liveness_verified,
         confidence_tier=tier,
-        attendance_method="ble_face",
+        attendance_method=resolved_method,
     )
     logger.info(f"[BACKEND_LOG] Attendance marked: record_id={record.id}, student_id={current_student.id}, session_id={session_id}, tier={tier}")
 

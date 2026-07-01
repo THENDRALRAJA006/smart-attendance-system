@@ -287,7 +287,7 @@ def mark_attendance(
     """Create and return an attendance record."""
 
     valid_tiers = {"present", "manual_review", "rejected"}
-    valid_methods = {"ble_face", "qr"}
+    valid_methods = {"ble_face", "qr", "qr_face"}
 
     if confidence_tier not in valid_tiers:
         raise HTTPException(

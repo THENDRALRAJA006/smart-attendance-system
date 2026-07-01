@@ -32,9 +32,10 @@ import 'screens/student/attendance_history_screen.dart';
 import 'screens/student/attendance_result_screen.dart';
 import 'screens/student/attendance_verification_screen.dart';
 import 'screens/student/classroom_detection_screen.dart';
-import 'screens/student/qr_scanner_screen.dart';
+import 'screens/student/qr_verification_screen.dart';
 import 'screens/student/reports_screen.dart';
 import 'screens/student/student_dashboard.dart';
+import 'screens/student/verification_method_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -198,8 +199,12 @@ class SmartAttendApp extends StatelessWidget {
           page: () => const ReportsScreen(),
         ),
         GetPage(
-          name: AppConstants.routeQrScanner,
-          page: () => const QrScannerScreen(),
+          name: AppConstants.routeVerificationMethod,
+          page: () => const VerificationMethodScreen(),
+        ),
+        GetPage(
+          name: AppConstants.routeQrVerification,
+          page: () => const QrVerificationScreen(),
         ),
         GetPage(
           name: AppConstants.routeProfile,

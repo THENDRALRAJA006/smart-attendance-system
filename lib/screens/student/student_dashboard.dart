@@ -1,32 +1,79 @@
 // ============================================================
-// SmartAttend — Student Dashboard
+// SmartAttend — Student Dashboard (v3)
+// StatefulWidget + Timer.periodic session polling (30s)
+// Active session detection, "Start Attendance" button
+// No standalone QR button — removed in v2, confirmed in v3
 // ============================================================
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../controllers/attendance_controller.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/student_controller.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/attendance_badge.dart';
 import '../../widgets/glassmorphism_card.dart';
-import '../../widgets/stat_card.dart';
 import 'package:intl/intl.dart';
 
-class StudentDashboard extends StatelessWidget {
+class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final student = Get.find<StudentController>();
-    final auth = Get.find<AuthController>();
+  State<StudentDashboard> createState() => _StudentDashboardState();
+}
 
+class _StudentDashboardState extends State<StudentDashboard>
+    with WidgetsBindingObserver {
+  late final AttendanceController _attendance;
+  late final StudentController _student;
+  late final AuthController _auth;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    _attendance = Get.find<AttendanceController>();
+    _student    = Get.find<StudentController>();
+    _auth       = Get.find<AuthController>();
+
+    // Trigger an immediate session check (StudentController polls every 30s
+    // automatically, but we want a fresh check on first open)
+    _attendance.checkActiveSession();
+    _student.fetchDashboard();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Refresh session check when app comes to foreground
+    if (state == AppLifecycleState.resumed) {
+      _attendance.checkActiveSession();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
         child: SafeArea(
           child: RefreshIndicator(
-            onRefresh: student.refresh,
+            onRefresh: () async {
+              await Future.wait([
+                _attendance.checkActiveSession(),
+                _student.refresh(),
+              ]);
+            },
             color: AppTheme.primary,
             backgroundColor: AppTheme.bgCard,
             child: CustomScrollView(
@@ -39,7 +86,7 @@ class StudentDashboard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Obx(() {
-                            final name = auth.currentStudent.value?.name ?? 'Student';
+                            final name = _auth.currentStudent.value?.name ?? 'Student';
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -62,15 +109,15 @@ class StudentDashboard extends StatelessWidget {
                             );
                           }),
                         ),
-                        // ─── Mark Attendance FAB ──────────────
+                        // ─── Avatar ───────────────────────────
                         GestureDetector(
-                          onTap: () => Get.toNamed(AppConstants.routeClassroomDetection),
+                          onTap: () => _showProfileMenu(context, _auth),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
                               gradient: AppTheme.primaryGradient,
-                              borderRadius: BorderRadius.circular(14),
+                              shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
                                   color: AppTheme.primary.withValues(alpha: 0.4),
@@ -79,38 +126,9 @@ class StudentDashboard extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.fingerprint,
-                                    color: Colors.white, size: 18),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Mark',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // ─── Avatar ───────────────────────────
-                        GestureDetector(
-                          onTap: () => _showProfileMenu(context, auth),
-                          child: Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.primaryGradient,
-                              shape: BoxShape.circle,
-                            ),
                             child: Center(
                               child: Obx(() {
-                                final name =
-                                    auth.currentStudent.value?.name ?? 'S';
+                                final name = _auth.currentStudent.value?.name ?? 'S';
                                 return Text(
                                   name[0].toUpperCase(),
                                   style: const TextStyle(
@@ -131,13 +149,12 @@ class StudentDashboard extends StatelessWidget {
                 // ─── Student Info Strip ───────────────────────
                 SliverToBoxAdapter(
                   child: Obx(() {
-                    final s = auth.currentStudent.value;
+                    final s = _auth.currentStudent.value;
                     if (s == null) return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
                           color: AppTheme.primary.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
@@ -147,11 +164,14 @@ class StudentDashboard extends StatelessWidget {
                             const Icon(Icons.school_outlined,
                                 color: AppTheme.primary, size: 16),
                             const SizedBox(width: 8),
-                            Text(
-                              '${s.regNo} • ${s.department} • Year ${s.year} - ${s.section}',
-                              style: const TextStyle(
-                                color: AppTheme.textSecondary,
-                                fontSize: 12,
+                            Expanded(
+                              child: Text(
+                                '${s.regNo} • ${s.department} • Year ${s.year} - ${s.section}',
+                                style: const TextStyle(
+                                  color: AppTheme.textSecondary,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -161,27 +181,17 @@ class StudentDashboard extends StatelessWidget {
                   }),
                 ),
 
-
-                // ─── Face Registration Warning Banner ────────
+                // ─── Face Registration Warning ────────────────
                 SliverToBoxAdapter(
                   child: Obx(() {
-                    final s = auth.currentStudent.value;
-                    debugPrint("===== FACE DEBUG =====");
-                    debugPrint("Student Name: ${s?.name}");
-                    debugPrint("Face ID: ${s?.faceId}");
-                    debugPrint("Face URL: ${s?.faceImageUrl}");
-                    debugPrint("======================");
-                    // Show warning if student has not yet registered their face
-                    if (s == null || s.hasFaceRegistered) {
-                      return const SizedBox.shrink();
-                    }
+                    final s = _auth.currentStudent.value;
+                    if (s == null || s.hasFaceRegistered) return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
                       child: GestureDetector(
                         onTap: () => Get.toNamed(AppConstants.routeFaceRegister),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
@@ -231,13 +241,22 @@ class StudentDashboard extends StatelessWidget {
                   }),
                 ),
 
+                const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+                // ─── Active Session Card ──────────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Obx(() => _ActiveSessionCard(attendance: _attendance)),
+                  ),
+                ),
+
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
                 // ─── Attendance Overview Card ─────────────────
                 SliverToBoxAdapter(
                   child: Obx(() {
-                    final stats = student.dashboardStats.value;
-                    
+                    final stats = _student.dashboardStats.value;
                     if (stats == null) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24),
@@ -249,10 +268,7 @@ class StudentDashboard extends StatelessWidget {
                       child: GlassmorphismCard(
                         child: Row(
                           children: [
-                            AttendanceRing(
-                              percentage: stats.attendancePercentage,
-                              size: 110,
-                            ),
+                            _AttendanceRing(percentage: stats.attendancePercentage),
                             const SizedBox(width: 24),
                             Expanded(
                               child: Column(
@@ -280,8 +296,7 @@ class StudentDashboard extends StatelessWidget {
                                   const SizedBox(height: 8),
                                   _InfoRow(
                                     label: 'Missed',
-                                    value:
-                                        '${stats.totalClasses - stats.attendedClasses}',
+                                    value: '${stats.totalClasses - stats.attendedClasses}',
                                     color: AppTheme.error,
                                   ),
                                   const SizedBox(height: 12),
@@ -293,8 +308,7 @@ class StudentDashboard extends StatelessWidget {
                                         color: AppTheme.error.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(8),
                                         border: Border.all(
-                                            color:
-                                                AppTheme.error.withValues(alpha: 0.3)),
+                                            color: AppTheme.error.withValues(alpha: 0.3)),
                                       ),
                                       child: const Text(
                                         '⚠ Below 75% Threshold',
@@ -334,10 +348,9 @@ class StudentDashboard extends StatelessWidget {
 
                 // ─── Subject Cards ────────────────────────────
                 Obx(() {
-                  final stats = student.dashboardStats.value;
+                  final stats = _student.dashboardStats.value;
                   if (stats == null) {
-                    return const SliverToBoxAdapter(
-                        child: SizedBox(height: 100));
+                    return const SliverToBoxAdapter(child: SizedBox(height: 100));
                   }
                   return SliverList(
                     delegate: SliverChildBuilderDelegate(
@@ -355,6 +368,7 @@ class StudentDashboard extends StatelessWidget {
 
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
+                // ─── Recent Activity ──────────────────────────
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
@@ -387,7 +401,7 @@ class StudentDashboard extends StatelessWidget {
                 ),
 
                 Obx(() {
-                  final stats = student.dashboardStats.value;
+                  final stats = _student.dashboardStats.value;
                   if (stats == null || stats.recentHistory.isEmpty) {
                     return const SliverToBoxAdapter(
                       child: Padding(
@@ -422,8 +436,7 @@ class StudentDashboard extends StatelessWidget {
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         record.subjectName ?? 'Unknown Subject',
@@ -551,14 +564,12 @@ class StudentDashboard extends StatelessWidget {
                         color: AppTheme.textPrimary,
                         fontWeight: FontWeight.w700)),
                 subtitle: Text(s?.email ?? '',
-                    style:
-                        const TextStyle(color: AppTheme.textSecondary)),
+                    style: const TextStyle(color: AppTheme.textSecondary)),
               );
             }),
             const Divider(color: AppTheme.bgCardLight),
             ListTile(
-              leading: const Icon(Icons.person_rounded,
-                  color: AppTheme.primary),
+              leading: const Icon(Icons.person_rounded, color: AppTheme.primary),
               title: const Text('My Profile',
                   style: TextStyle(color: AppTheme.textPrimary)),
               onTap: () {
@@ -567,8 +578,7 @@ class StudentDashboard extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.bar_chart_rounded,
-                  color: AppTheme.accent),
+              leading: const Icon(Icons.bar_chart_rounded, color: AppTheme.accent),
               title: const Text('Attendance Reports',
                   style: TextStyle(color: AppTheme.textPrimary)),
               onTap: () {
@@ -577,20 +587,7 @@ class StudentDashboard extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.qr_code_scanner_rounded,
-                  color: AppTheme.success),
-              title: const Text('Scan QR Attendance',
-                  style: TextStyle(color: AppTheme.textPrimary)),
-              subtitle: const Text('Fallback when BLE unavailable',
-                  style: TextStyle(color: AppTheme.textHint, fontSize: 11)),
-              onTap: () {
-                Get.back();
-                Get.toNamed(AppConstants.routeQrScanner);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.history_rounded,
-                  color: AppTheme.warning),
+              leading: const Icon(Icons.history_rounded, color: AppTheme.warning),
               title: const Text('Attendance History',
                   style: TextStyle(color: AppTheme.textPrimary)),
               onTap: () {
@@ -600,8 +597,7 @@ class StudentDashboard extends StatelessWidget {
             ),
             const Divider(color: AppTheme.bgCardLight),
             ListTile(
-              leading: const Icon(Icons.logout_rounded,
-                  color: AppTheme.error),
+              leading: const Icon(Icons.logout_rounded, color: AppTheme.error),
               title: const Text('Logout',
                   style: TextStyle(color: AppTheme.error)),
               onTap: () {
@@ -612,6 +608,439 @@ class StudentDashboard extends StatelessWidget {
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Active Session Card ─────────────────────────────────────
+class _ActiveSessionCard extends StatelessWidget {
+  final AttendanceController attendance;
+  const _ActiveSessionCard({required this.attendance});
+
+  @override
+  Widget build(BuildContext context) {
+    // Checking indicator
+    if (attendance.isCheckingSession.value && !attendance.hasActiveSession) {
+      return _buildCheckingCard();
+    }
+
+    // Already marked
+    if (attendance.alreadyMarked && attendance.hasActiveSession) {
+      return _buildAlreadyMarkedCard();
+    }
+
+    // Active session available
+    if (attendance.hasActiveSession) {
+      return _buildActiveSessionCard(context);
+    }
+
+    // No session
+    return _buildNoSessionCard();
+  }
+
+  Widget _buildCheckingCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.textHint.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: AppTheme.primary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Checking Session…',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Looking for an active attendance session…',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoSessionCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.textHint.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.textHint.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.wifi_off_rounded,
+                color: AppTheme.textHint, size: 24),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No Attendance Session is Active',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Wait for your faculty to start an attendance session.',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Obx(() => attendance.isCheckingSession.value
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppTheme.textHint,
+                  ),
+                )
+              : const SizedBox.shrink()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveSessionCard(BuildContext context) {
+    final session = attendance.activeSession.value!;
+    return GestureDetector(
+      onTap: () => Get.toNamed(AppConstants.routeClassroomDetection),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A2940), Color(0xFF1A3520)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: AppTheme.success.withValues(alpha: 0.4), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.success.withValues(alpha: 0.15),
+              blurRadius: 20,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row
+            Row(
+              children: [
+                _PulsingDot(),
+                const SizedBox(width: 10),
+                const Text(
+                  'Attendance Session Active',
+                  style: TextStyle(
+                    color: AppTheme.success,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: AppTheme.success.withValues(alpha: 0.3)),
+                  ),
+                  child: const Text(
+                    'LIVE',
+                    style: TextStyle(
+                      color: AppTheme.success,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // Session info
+            Text(
+              session.subjectName,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.location_on_rounded,
+                    color: AppTheme.textSecondary, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  session.classroomName,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            // Start Attendance Button
+            Container(
+              width: double.infinity,
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: AppTheme.successGradient,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.success.withValues(alpha: 0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.play_circle_rounded,
+                        color: Colors.white, size: 22),
+                    SizedBox(width: 10),
+                    Text(
+                      'Start Attendance',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlreadyMarkedCard() {
+    final session = attendance.activeSession.value!;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primary.withValues(alpha: 0.12),
+            AppTheme.accent.withValues(alpha: 0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+            color: AppTheme.primary.withValues(alpha: 0.3), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: AppTheme.primaryGradient,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_circle_rounded,
+                color: Colors.white, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Attendance Marked ✅',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'You have already marked attendance for ${session.subjectName}.',
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Pulsing Dot Animation ───────────────────────────────────
+class _PulsingDot extends StatefulWidget {
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: AppTheme.success.withValues(alpha: _anim.value),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.success.withValues(alpha: _anim.value * 0.5),
+              blurRadius: 6,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Attendance Ring ─────────────────────────────────────────
+class _AttendanceRing extends StatelessWidget {
+  final double percentage;
+  const _AttendanceRing({required this.percentage});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = percentage >= 75
+        ? AppTheme.success
+        : percentage >= 60
+            ? AppTheme.warning
+            : AppTheme.error;
+    return SizedBox(
+      width: 110,
+      height: 110,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: percentage / 100,
+            strokeWidth: 8,
+            backgroundColor: color.withValues(alpha: 0.15),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${percentage.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                ),
+              ),
+              const Text(
+                'Attended',
+                style: TextStyle(
+                  color: AppTheme.textHint,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -726,15 +1155,13 @@ class _SubjectCard extends StatelessWidget {
               value: subject.percentage / 100,
               minHeight: 6,
               backgroundColor: _pctColor(subject.percentage).withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                  _pctColor(subject.percentage)),
+              valueColor: AlwaysStoppedAnimation<Color>(_pctColor(subject.percentage)),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             '${subject.attended}/${subject.total} classes',
-            style: const TextStyle(
-                color: AppTheme.textSecondary, fontSize: 12),
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
         ],
       ),
