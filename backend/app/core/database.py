@@ -12,10 +12,9 @@ from .config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,          # Reconnect dropped connections
-    pool_size=3,                 # Reduced: Render 1-worker + RDS free tier
-    max_overflow=5,              # Reduced: max 8 total connections
-    pool_recycle=300,            # Recycle every 5min (handles Render restarts)
-    pool_timeout=30,             # Wait max 30s for a connection
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=3600,           # Recycle connections every hour
     echo=settings.APP_ENV == "development",
 )
 
