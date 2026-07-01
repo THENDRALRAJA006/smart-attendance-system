@@ -12,9 +12,10 @@ from .config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,          # Reconnect dropped connections
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=3600,           # Recycle connections every hour
+    pool_size=2,                 # 1 uvicorn worker needs max 2 concurrent connections
+    max_overflow=3,              # Allow 3 extra under burst (total 5 max)
+    pool_recycle=1800,           # Recycle every 30 min (handles RDS idle timeouts)
+    pool_timeout=20,             # Wait max 20s for a connection
     echo=settings.APP_ENV == "development",
 )
 

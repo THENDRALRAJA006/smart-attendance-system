@@ -2,6 +2,7 @@
 # SmartAttend — FastAPI Application Entry Point
 # ============================================================
 
+import gc
 import logging
 import traceback
 from contextlib import asynccontextmanager
@@ -43,14 +44,27 @@ def _generate_unique_id(route: APIRoute) -> str:
 async def lifespan(app: FastAPI):
     """Initialize services on startup."""
     logger.info("🚀 SmartAttend API starting...")
-    
+
     # Create DB tables
     init_db()
     logger.info("✅ Database tables initialized")
-    
+
+    # ── Warm up ArcFace model at startup (not on first request) ──
+    # This ensures OOM crash is visible in startup logs, not mid-request.
+    # face_service.py already calls get_face_analysis_app() at import time,
+    # so this is a no-op if model already loaded, but guarantees warm-up.
+    try:
+        from app.services.face_service import get_face_analysis_app
+        get_face_analysis_app()   # returns existing singleton
+        gc.collect()              # reclaim any fragmented init memory
+        logger.info("✅ ArcFace model ready")
+    except Exception as e:
+        logger.error(f"⚠️  ArcFace model warm-up failed: {e}")
+        # Don't abort startup — let /health report the error
+
     logger.info("✅ SmartAttend API ready")
     yield
-    
+
     logger.info("👋 SmartAttend API shutting down...")
 
 

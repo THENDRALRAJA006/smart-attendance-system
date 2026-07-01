@@ -1,25 +1,50 @@
 # ============================================================
 # SmartAttend AI — Render Deployment Configuration (Production)
-# FastAPI backend → Render Web Service
+# FastAPI backend -> Render Web Service (Free Tier, 512 MB RAM)
 # RDS MySQL (us-east-1) — no AWS Rekognition dependency
+#
+# Memory budget after optimizations:
+#   buffalo_s model    ~120 MB
+#   ONNX Runtime       ~40 MB (2 threads)
+#   Python + FastAPI   ~40 MB
+#   DB pool (2 conns)  ~4 MB
+#   Request peak       ~30 MB
+#   Total              ~234 MB  (well within 512 MB)
 # ============================================================
 
 services:
   - type: web
     name: smartattend-api
     runtime: python
-    # ── Build: install deps + ensure headless opencv ──────────────
-    buildCommand: pip install -r requirements.txt && pip uninstall -y opencv-python opencv-python-headless && pip install opencv-python-headless==4.10.0.84 && python -c "from insightface.app import FaceAnalysis; app = FaceAnalysis(name='buffalo_l', root='./models_cache', allowed_modules=['detection', 'recognition']); app.prepare(ctx_id=-1)"
-    # ── 1 worker: safe for Render free tier (512MB RAM)
-    startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
     plan: free
-    region: ohio        # us-east-2 — closest Render region to AWS us-east-1 RDS
+    region: ohio        # us-east-2 — closest to AWS RDS us-east-1
     rootDir: backend
 
-    # ── Health check ────────────────────────────────────────────────
+    # ── Build ─────────────────────────────────────────────────────
+    # 1. Install deps (scikit-learn removed — saves 30 MB RAM)
+    # 2. Ensure headless OpenCV (no GUI libs)
+    # 3. Pre-download buffalo_s model (~120 MB vs buffalo_l ~400 MB)
+    buildCommand: >
+      pip install -r requirements.txt &&
+      pip uninstall -y opencv-python opencv-python-headless &&
+      pip install opencv-python-headless==4.10.0.84 &&
+      python -c "
+      from insightface.app import FaceAnalysis;
+      app = FaceAnalysis(name='buffalo_s', root='./models_cache', allowed_modules=['detection', 'recognition']);
+      app.prepare(ctx_id=-1, det_size=(320, 320));
+      print('buffalo_s model downloaded and ready')
+      "
+
+    # ── Start ──────────────────────────────────────────────────────
+    # Single worker only — multi-worker would double model RAM usage
+    startCommand: >
+      alembic upgrade head &&
+      uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
+
+    # ── Health check ───────────────────────────────────────────────
     healthCheckPath: /health
 
-    # ── Environment Variables ───────────────────────────────────────
+    # ── Environment Variables ──────────────────────────────────────
     envVars:
       # App
       - key: APP_NAME
@@ -27,15 +52,27 @@ services:
       - key: APP_ENV
         value: production
       - key: APP_BASE_URL
-        sync: false           # Set to your Render URL after first deploy
+        value: https://smart-attend-ai-20u4.onrender.com
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: "*"
 
       # Python runtime
       - key: PYTHONDONTWRITEBYTECODE
         value: "1"
       - key: PYTHONUNBUFFERED
         value: "1"
+
+      # ── Memory / Thread tuning (critical for 512 MB free tier) ──
+      # Prevent OpenMP / BLAS from spawning excessive threads
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
+      # Return freed heap memory to OS faster (prevents RSS bloat)
+      - key: MALLOC_TRIM_THRESHOLD_
+        value: "100000"
 
       # MySQL (RDS)
       - key: DB_HOST
@@ -47,9 +84,9 @@ services:
       - key: DB_NAME
         value: smart_attendance
       - key: DB_PASSWORD
-        sync: false           # Set in Render dashboard as secret
+        sync: false       # Set in Render Dashboard -> Environment (secret)
 
-      # JWT — Render auto-generates cryptographically random secrets
+      # JWT
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: JWT_REFRESH_SECRET_KEY
@@ -61,10 +98,10 @@ services:
       - key: JWT_REFRESH_EXPIRE_DAYS
         value: "7"
 
-      # ArcFace (InsightFace) — cosine similarity thresholds (0.0–1.0 scale)
+      # ArcFace (InsightFace buffalo_s) — cosine similarity thresholds
       - key: ARCFACE_SIMILARITY_THRESHOLD
-        value: "0.75"         # >= 0.75 → present
+        value: "0.75"     # >= 0.75 -> present
       - key: ARCFACE_REVIEW_THRESHOLD
-        value: "0.65"         # 0.65–0.74 → manual_review; < 0.65 → rejected
+        value: "0.65"     # 0.65-0.74 -> manual_review; < 0.65 -> rejected
       - key: ARCFACE_MODEL_PATH
         value: "./models_cache"

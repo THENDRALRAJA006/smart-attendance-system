@@ -2,6 +2,7 @@
 # SmartAttend — Liveness Detection Service (Local ArcFace)
 # ============================================================
 
+import gc
 import logging
 import random
 import secrets
@@ -154,65 +155,60 @@ class LivenessService:
         """
         try:
             img = decode_image_bytes(image_bytes)
-            
+
             # Check quality first
             quality_ok, reason, brightness, sharpness = self._check_quality(img)
             if not quality_ok:
                 logger.warning(f"Quality gate failed: {reason}")
+                del img
                 return None
 
             app = get_face_analysis_app()
             faces = app.get(img)
 
+            # Release decoded image immediately after detection
+            del img
+
             if len(faces) == 0:
                 logger.debug("No face detected in frame")
+                del faces
                 return None
 
             if len(faces) > 1:
                 logger.warning(f"Multiple faces ({len(faces)}) detected — spoofing suspected")
+                del faces
                 return None
 
             face = faces[0]
-            
+
             # Extract keypoint variables
             left_eye = face.kps[0]
             right_eye = face.kps[1]
             nose = face.kps[2]
             left_mouth = face.kps[3]
             right_mouth = face.kps[4]
-            
+
             # Compute Yaw turn from horizontal alignment
             midpoint_eyes_x = (left_eye[0] + right_eye[0]) / 2.0
             eye_width = np.linalg.norm(left_eye - right_eye)
             nose_offset = (nose[0] - midpoint_eyes_x) / (eye_width + 1e-6)
-            # Map nose offset to a proxy Yaw angle in degrees (turned left is negative, turned right is positive)
             yaw = float(nose_offset * 100.0)
-            
+
             # Compute Smile ratio
             mouth_width = np.linalg.norm(left_mouth - right_mouth)
             smile_ratio = mouth_width / (eye_width + 1e-6)
-            # Typically 0.65 to 0.74 is neutral, >0.78 is smiling
             smile_confidence = float(min(100.0, max(0.0, ((smile_ratio - 0.65) / 0.15) * 100.0)))
 
-            return {
-                "Quality": {
-                    "Brightness": brightness,
-                    "Sharpness": sharpness
-                },
-                "Pose": {
-                    "Yaw": yaw,
-                    "Pitch": 0.0,
-                    "Roll": 0.0
-                },
-                "Smile": {
-                    "Value": smile_ratio > 0.78,
-                    "Confidence": smile_confidence
-                },
-                "EyesOpen": {
-                    "Value": True,
-                    "Confidence": 95.0
-                }
+            result = {
+                "Quality": {"Brightness": brightness, "Sharpness": sharpness},
+                "Pose": {"Yaw": yaw, "Pitch": 0.0, "Roll": 0.0},
+                "Smile": {"Value": smile_ratio > 0.78, "Confidence": smile_confidence},
+                "EyesOpen": {"Value": True, "Confidence": 95.0},
             }
+
+            del faces, face
+            gc.collect()
+            return result
         except Exception as e:
             logger.error(f"Error in liveness _analyze_frame: {e}")
             return None
@@ -252,9 +248,9 @@ class LivenessService:
                 "details": {},
             }
 
-        # 2. Analyze each frame
+        # 2. Analyze each frame — max 2 frames to limit RAM usage
         analyzed_frames = []
-        for i, frame_bytes in enumerate(frames[:3]):  # Max 3 frames
+        for i, frame_bytes in enumerate(frames[:2]):
             face = self._analyze_frame(frame_bytes)
             if face:
                 analyzed_frames.append(face)
@@ -363,15 +359,19 @@ class LivenessService:
         # Quality checks
         quality_ok, reason, brightness, sharpness = self._check_quality(img)
         if not quality_ok:
+            del img
             return {"valid": False, "reason": reason}
 
         app = get_face_analysis_app()
         faces = app.get(img)
+        del img
 
         if len(faces) == 0:
+            del faces
             return {"valid": False, "reason": "No face detected. Position your face in the frame."}
 
         if len(faces) > 1:
+            del faces
             return {"valid": False, "reason": f"Multiple faces detected ({len(faces)}). Ensure only one person is in frame."}
 
         face = faces[0]
@@ -384,6 +384,9 @@ class LivenessService:
         eye_width = np.linalg.norm(left_eye - right_eye)
         nose_offset = (nose[0] - midpoint_eyes_x) / (eye_width + 1e-6)
         yaw = float(nose_offset * 100.0)
+
+        del faces, face
+        gc.collect()
 
         return {
             "valid": True,
