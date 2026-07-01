@@ -2,24 +2,46 @@
 # SmartAttend AI — Render Deployment Configuration (Production)
 # FastAPI backend → Render Web Service
 # RDS MySQL (us-east-1) — no AWS Rekognition dependency
+# FIXED v2: Python 3.11.9 pinned, starter plan, simplified
+#           buildCommand, persistent disk, alembic retry
 # ============================================================
 
 services:
   - type: web
     name: smartattend-api
     runtime: python
-    # ── Build: install deps + ensure headless opencv ──────────────
-    buildCommand: pip install -r requirements.txt && pip uninstall -y opencv-python opencv-python-headless && pip install opencv-python-headless==4.10.0.84 && python -c "from insightface.app import FaceAnalysis; app = FaceAnalysis(name='buffalo_l', root='./models_cache', allowed_modules=['detection', 'recognition']); app.prepare(ctx_id=-1)"
-    # ── 1 worker: safe for Render free tier (512MB RAM)
-    startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
-    plan: free
-    region: ohio        # us-east-2 — closest Render region to AWS us-east-1 RDS
+    pythonVersion: "3.11.9"     # Pinned: insightface 0.7.3 requires ≤ 3.11
+    plan: starter               # 2GB RAM — minimum for InsightFace buffalo_l
+    region: ohio                # us-east-2 — closest Render region to AWS us-east-1 RDS
     rootDir: backend
 
-    # ── Health check ────────────────────────────────────────────────
+    # ── Health check ──────────────────────────────────────────
     healthCheckPath: /health
 
-    # ── Environment Variables ───────────────────────────────────────
+    # ── Build: install deps + headless OpenCV only ───────────
+    # Model download is lazy (face_service.py get_face_analysis_app())
+    # so we do NOT pre-download during build — avoids build timeouts
+    buildCommand: >
+      pip install -r requirements.txt &&
+      pip uninstall -y opencv-python opencv-python-headless &&
+      pip install opencv-python-headless==4.10.0.84
+
+    # ── Start: alembic with retry + uvicorn ──────────────────
+    # Retries alembic 5 times (handles cold RDS wakeup) then
+    # starts uvicorn with 120s keep-alive for mobile clients
+    startCommand: >
+      bash -c "for i in 1 2 3 4 5; do alembic upgrade head && break || (echo 'Migration failed, retrying...' && sleep 5); done &&
+      uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info --timeout-keep-alive 120"
+
+    # ── Persistent disk for ArcFace models + static faces ────
+    # models_cache: ~1.5GB for buffalo_l ONNX files
+    # static/faces: student profile photos (ephemeral without this)
+    disk:
+      name: smartattend-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 3
+
+    # ── Environment Variables ─────────────────────────────────
     envVars:
       # App
       - key: APP_NAME
@@ -27,9 +49,9 @@ services:
       - key: APP_ENV
         value: production
       - key: APP_BASE_URL
-        sync: false           # Set to your Render URL after first deploy
+        value: https://smart-attend-ai-20u4.onrender.com
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: "*"
 
       # Python runtime
       - key: PYTHONDONTWRITEBYTECODE
@@ -47,7 +69,7 @@ services:
       - key: DB_NAME
         value: smart_attendance
       - key: DB_PASSWORD
-        sync: false           # Set in Render dashboard as secret
+        sync: false             # Set in Render Dashboard → Environment (secret)
 
       # JWT — Render auto-generates cryptographically random secrets
       - key: JWT_SECRET_KEY
@@ -63,8 +85,8 @@ services:
 
       # ArcFace (InsightFace) — cosine similarity thresholds (0.0–1.0 scale)
       - key: ARCFACE_SIMILARITY_THRESHOLD
-        value: "0.75"         # >= 0.75 → present
+        value: "0.75"           # >= 0.75 → present
       - key: ARCFACE_REVIEW_THRESHOLD
-        value: "0.65"         # 0.65–0.74 → manual_review; < 0.65 → rejected
+        value: "0.65"           # 0.65–0.74 → manual_review; < 0.65 → rejected
       - key: ARCFACE_MODEL_PATH
-        value: "./models_cache"
+        value: "/opt/render/project/src/data/models_cache"  # persistent disk
