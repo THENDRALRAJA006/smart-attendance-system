@@ -52,7 +52,7 @@ services:
       - key: APP_ENV
         value: production
       - key: APP_BASE_URL
-        value: https://smart-attend-ai-20u4.onrender.com
+        value: https://smart-attendance-system-2-qthq.onrender.com
       - key: ALLOWED_ORIGINS
         value: "*"
 
