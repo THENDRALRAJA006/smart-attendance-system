@@ -691,15 +691,17 @@ class _QuickActions extends StatelessWidget {
                   border: Border.all(color: color.withValues(alpha: 0.2)),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(a['icon'] as IconData, color: color, size: 24),
-                  const SizedBox(height: 6),
-                  Text(a['label'] as String,
-                      style: GoogleFonts.poppins(
-                          fontSize: 10, fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary, height: 1.2),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+                  Icon(a['icon'] as IconData, color: color, size: 22),
+                  const SizedBox(height: 4),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(a['label'] as String,
+                        style: GoogleFonts.poppins(
+                            fontSize: 10, fontWeight: FontWeight.w600,
+                            color: AppTheme.textSecondary, height: 1.2),
+                        textAlign: TextAlign.center,
+                        maxLines: 2),
+                  ),
                 ]),
               ),
             ),

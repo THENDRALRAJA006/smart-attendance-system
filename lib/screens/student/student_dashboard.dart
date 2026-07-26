@@ -760,11 +760,17 @@ class _Chip extends StatelessWidget {
           child: Column(children: [
             Icon(icon, color: color, size: 18),
             const SizedBox(height: 6),
-            Text(value,
-                style: GoogleFonts.poppins(
-                    fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-            Text(label,
-                style: GoogleFonts.poppins(fontSize: 10, color: AppTheme.textHint)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value,
+                  style: GoogleFonts.poppins(
+                      fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+            ),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label,
+                  style: GoogleFonts.poppins(fontSize: 10, color: AppTheme.textHint)),
+            ),
           ]),
         ),
       ),
@@ -1240,13 +1246,15 @@ class _QuickActionsSection extends StatelessWidget {
           crossAxisCount: 4,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 0.95,
           children: actions.map((a) {
             final color = a['color'] as Color;
             return GestureDetector(
               onTap: () => Get.toNamed(a['route'] as String),
               child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(16),
@@ -1255,14 +1263,17 @@ class _QuickActionsSection extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(a['icon'] as IconData, color: color, size: 24),
-                    const SizedBox(height: 6),
-                    Text(a['label'] as String,
-                        style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textSecondary),
-                        textAlign: TextAlign.center),
+                    Icon(a['icon'] as IconData, color: color, size: 22),
+                    const SizedBox(height: 4),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(a['label'] as String,
+                          style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textSecondary),
+                          textAlign: TextAlign.center),
+                    ),
                   ],
                 ),
               ),

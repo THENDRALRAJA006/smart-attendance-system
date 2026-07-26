@@ -281,13 +281,13 @@ class _OverviewGrid extends StatelessWidget {
         crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.6,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.35,
         children: items.map((item) {
           final color = item['color'] as Color;
           return Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppTheme.bgCard,
               borderRadius: BorderRadius.circular(16),
@@ -296,26 +296,34 @@ class _OverviewGrid extends StatelessWidget {
             ),
             child: Row(children: [
               Container(
-                width: 40, height: 40,
+                width: 38, height: 38,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(item['icon'] as IconData, color: color, size: 20),
+                child: Icon(item['icon'] as IconData, color: color, size: 18),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(item['value'] as String,
-                      style: GoogleFonts.poppins(
-                          fontSize: 20, fontWeight: FontWeight.w800,
-                          color: AppTheme.textPrimary)),
-                  Text(item['label'] as String,
-                      style: GoogleFonts.poppins(
-                          fontSize: 10, color: AppTheme.textSecondary),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(item['value'] as String,
+                        style: GoogleFonts.poppins(
+                            fontSize: 18, fontWeight: FontWeight.w800,
+                            color: AppTheme.textPrimary)),
+                  ),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(item['label'] as String,
+                        style: GoogleFonts.poppins(
+                            fontSize: 10, color: AppTheme.textSecondary),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ),
                 ],
               )),
             ]),
