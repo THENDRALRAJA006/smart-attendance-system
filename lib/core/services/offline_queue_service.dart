@@ -25,6 +25,10 @@ class OfflineQueueService extends GetxService {
 
   // ─── Init ─────────────────────────────────────────────────
   Future<OfflineQueueService> init() async {
+    if (kIsWeb) {
+      debugPrint('[OfflineQueue] Web platform detected — SQLite disabled on web');
+      return this;
+    }
     await _openDb();
     await _countPending();
 
@@ -43,6 +47,7 @@ class OfflineQueueService extends GetxService {
 
   // ─── Database ─────────────────────────────────────────────
   Future<void> _openDb() async {
+    if (kIsWeb) return;
     final dbPath = await getDatabasesPath();
     _db = await openDatabase(
       join(dbPath, 'smartattend_offline.db'),
@@ -61,14 +66,12 @@ class OfflineQueueService extends GetxService {
   }
 
   // ─── Enqueue ──────────────────────────────────────────────
-  /// Enqueue an attendance record for later sync.
-  /// [endpoint] e.g. '/attendance/mark-qr'
-  /// [payload] the request body map
   Future<void> enqueue({
     required String endpoint,
     required Map<String, dynamic> payload,
     String method = 'POST',
   }) async {
+    if (kIsWeb) return;
     if (_db == null) await _openDb();
     await _db!.insert(_tableName, {
       'payload': jsonEncode(payload),
@@ -83,7 +86,7 @@ class OfflineQueueService extends GetxService {
 
   // ─── Sync ─────────────────────────────────────────────────
   Future<void> _syncPending() async {
-    if (syncing.value) return;
+    if (kIsWeb || syncing.value) return;
     if (_db == null) await _openDb();
 
     final rows = await _db!.query(
@@ -124,6 +127,7 @@ class OfflineQueueService extends GetxService {
   }
 
   Future<void> _incrementRetry(int id, int current) async {
+    if (kIsWeb || _db == null) return;
     await _db!.update(
       _tableName,
       {'retry_count': current + 1},
@@ -133,7 +137,7 @@ class OfflineQueueService extends GetxService {
   }
 
   Future<void> _countPending() async {
-    if (_db == null) return;
+    if (kIsWeb || _db == null) return;
     final result = await _db!.rawQuery('SELECT COUNT(*) as cnt FROM $_tableName');
     pendingCount.value = (result.first['cnt'] as int?) ?? 0;
   }
@@ -143,7 +147,7 @@ class OfflineQueueService extends GetxService {
 
   // ─── Clear All ───────────────────────────────────────────
   Future<void> clearAll() async {
-    if (_db == null) return;
+    if (kIsWeb || _db == null) return;
     await _db!.delete(_tableName);
     pendingCount.value = 0;
   }
