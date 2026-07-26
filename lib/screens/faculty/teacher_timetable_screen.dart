@@ -21,8 +21,8 @@ class TeacherTimetableScreen extends StatefulWidget {
 }
 
 class _TeacherTimetableScreenState extends State<TeacherTimetableScreen>
-    with SingleTickerProviderStateMixin {
-  final ErpController _ctrl = Get.find();
+    with TickerProviderStateMixin {
+  late final ErpController _ctrl;
   late TabController _tabController;
 
   final List<String> _days = [
@@ -32,6 +32,9 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen>
   @override
   void initState() {
     super.initState();
+    _ctrl = Get.isRegistered<ErpController>()
+        ? Get.find<ErpController>()
+        : Get.put(ErpController());
     _tabController = TabController(length: 2, vsync: this);
     _ctrl.fetchTeacherTimetable();
   }

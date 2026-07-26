@@ -11,7 +11,10 @@ import '../models/erp_models.dart';
 import '../models/timetable_models.dart';
 
 class ErpController extends GetxController {
-  static ErpController get to => Get.find();
+  static ErpController get to =>
+      Get.isRegistered<ErpController>()
+          ? Get.find<ErpController>()
+          : Get.put(ErpController());
 
   ApiClient get _api => ApiClient.to;
 

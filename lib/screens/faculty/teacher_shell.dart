@@ -24,13 +24,21 @@ class TeacherShell extends StatefulWidget {
 
 class _TeacherShellState extends State<TeacherShell> {
   int _currentIndex = 0;
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
     if (!Get.isRegistered<ErpController>()) {
-      Get.put(ErpController(), permanent: false);
+      Get.put(ErpController(), permanent: true);
     }
+    _pages = const [
+      TeacherDashboardScreen(),
+      SessionHistoryScreen(),
+      SessionHistoryScreen(),
+      TeacherTimetableScreen(),
+      ProfileScreen(),
+    ];
   }
 
   final List<SANavItem> _navItems = const [
@@ -59,14 +67,6 @@ class _TeacherShellState extends State<TeacherShell> {
       activeIcon: Icons.person_rounded,
       label: 'Profile',
     ),
-  ];
-
-  final List<Widget> _pages = const [
-    TeacherDashboardScreen(),
-    SessionHistoryScreen(),
-    SessionHistoryScreen(),
-    TeacherTimetableScreen(),
-    ProfileScreen(),
   ];
 
   @override

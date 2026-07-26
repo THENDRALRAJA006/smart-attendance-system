@@ -25,13 +25,21 @@ class StudentShell extends StatefulWidget {
 
 class _StudentShellState extends State<StudentShell> {
   int _currentIndex = 0;
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
     if (!Get.isRegistered<ErpController>()) {
-      Get.put(ErpController(), permanent: false);
+      Get.put(ErpController(), permanent: true);
     }
+    _pages = const [
+      StudentDashboard(),
+      AttendanceHistoryScreen(),
+      ReportsScreen(),
+      StudentTimetableScreen(),
+      ProfileScreen(),
+    ];
   }
 
   final List<SANavItem> _navItems = const [
@@ -60,15 +68,6 @@ class _StudentShellState extends State<StudentShell> {
       activeIcon: Icons.person_rounded,
       label: 'Profile',
     ),
-  ];
-
-  // Pages
-  final List<Widget> _pages = const [
-    StudentDashboard(),
-    AttendanceHistoryScreen(),
-    ReportsScreen(),
-    StudentTimetableScreen(),
-    ProfileScreen(),
   ];
 
   @override

@@ -13,7 +13,10 @@ import '../core/services/storage_service.dart';
 import '../models/models.dart';
 
 class AuthController extends GetxController {
-  static AuthController get to => Get.find();
+  static AuthController get to =>
+      Get.isRegistered<AuthController>()
+          ? Get.find<AuthController>()
+          : Get.put(AuthController());
 
   ApiClient get _api => ApiClient.to;
 
