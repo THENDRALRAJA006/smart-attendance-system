@@ -47,7 +47,7 @@ class _PeriodTimingsScreenState extends State<PeriodTimingsScreen> {
             onPressed: () => _showBulkEditDialog(context),
           ),
           IconButton(
-            icon: const Icon(Icons.alarm_add_rounded, color: AppTheme.primary, size: 26),
+            icon: const Icon(Icons.add_time_rounded, color: AppTheme.primary, size: 26),
             tooltip: 'Add Custom Timing',
             onPressed: () => _showAddPeriodDialog(context),
           ),

@@ -25,7 +25,7 @@ from app.core.dependencies import get_current_student
 from app.models.models import (
     Student, Attendance, Subject, Classroom,
     Faculty, FaceEmbedding, Session as AttSession,
-    FacultySubject, TimetableEntry,
+    FacultySubject, WeeklyTimetableSlot, ErpDepartment,
 )
 
 logger = logging.getLogger(__name__)
@@ -258,22 +258,27 @@ def _build_today_schedule(
     the student's attendance status.
     Returns a list of schedule dicts compatible with TodayScheduleEntry Flutter model.
     """
-    # 1. Fetch timetable entries for student's class today
-    entries = (
-        db.query(TimetableEntry)
+    # 1. Fetch timetable entries for student's class today from WeeklyTimetableSlot
+    dept = db.query(ErpDepartment).filter(
+        (ErpDepartment.short_name == student.department) |
+        (ErpDepartment.name == student.department)
+    ).first()
+    dept_id = dept.id if dept else 1
+
+    slots = (
+        db.query(WeeklyTimetableSlot)
         .filter(
-            TimetableEntry.department == student.department,
-            TimetableEntry.year == student.year,
-            TimetableEntry.section == student.section,
-            TimetableEntry.day_of_week == today_day,
-            TimetableEntry.is_active == True,
-            TimetableEntry.class_type.notin_(["Break", "Lunch", "Free"]),
+            WeeklyTimetableSlot.department_id == dept_id,
+            WeeklyTimetableSlot.year == student.year,
+            WeeklyTimetableSlot.section == student.section,
+            WeeklyTimetableSlot.day_of_week == today_day,
+            WeeklyTimetableSlot.is_active == True,
+            WeeklyTimetableSlot.class_type.notin_(["Break", "Lunch", "Free"]),
         )
-        .order_by(TimetableEntry.period_number)
         .all()
     )
 
-    if not entries:
+    if not slots:
         return []
 
     # 2. Fetch all sessions for today for this student's class
@@ -310,64 +315,45 @@ def _build_today_schedule(
             att_map[row.session_id] = row.status
 
     result = []
-    for e in entries:
-        # Determine if this period is currently happening
-        start = e.start_time or "00:00"   # HH:MM
-        end   = e.end_time   or "23:59"
+    for s in slots:
+        start = s.period_timing.start_time if s.period_timing else "00:00"
+        end   = s.period_timing.end_time if s.period_timing else "23:59"
         is_current = (start <= now_hm <= end)
 
-        # Find matching session
-        session = session_map.get(e.subject_id) if e.subject_id else None
+        session = session_map.get(s.erp_subject_id) if s.erp_subject_id else None
         session_id = session.id if session else 0
         is_active  = session.is_active if session else False
 
-        # Attendance status
         att_status = att_map.get(session_id) if session else None
         if att_status is None:
             if is_current and is_active:
-                att_status = "upcoming"  # session live but not marked
+                att_status = "upcoming"
             elif is_current:
-                att_status = "upcoming"  # period now but no session started
+                att_status = "upcoming"
             elif now_hm > end:
-                att_status = "not_marked"  # past period
+                att_status = "not_marked"
             else:
-                att_status = "upcoming"  # future period
+                att_status = "upcoming"
 
-        # Resolve display fields
-        subject_name = e.subject_name_raw or "Unknown Subject"
-        subject_code = e.subject_code_raw
-        faculty_name = e.faculty_name_raw
-        classroom    = e.room_raw or ""
-
-        # Try to get richer data from linked Subject/Faculty
-        if e.subject_id:
-            subj = db.query(Subject).filter(Subject.id == e.subject_id).first()
-            if subj:
-                subject_name = subj.subject_name or subject_name
-                subject_code = subj.subject_code or subject_code
-        if e.faculty_id and not faculty_name:
-            fac = db.query(Faculty).filter(Faculty.id == e.faculty_id).first()
-            if fac:
-                faculty_name = fac.name
-        if e.classroom_id and not classroom:
-            room = db.query(Classroom).filter(Classroom.id == e.classroom_id).first()
-            if room:
-                classroom = room.room_name
+        subject_name = s.erp_subject.subject_name if s.erp_subject else "Unknown Subject"
+        subject_code = s.erp_subject.subject_code if s.erp_subject else None
+        faculty_name = s.faculty.name if s.faculty else None
+        classroom    = s.classroom.room_name if s.classroom else ""
 
         result.append({
-            "session_id":    session_id,
-            "timetable_id":  e.id,
-            "period_number": e.period_number,
-            "subject_name":  subject_name,
-            "subject_code":  subject_code,
-            "classroom":     classroom,
-            "faculty_name":  faculty_name,
-            "start_time":    e.start_time,
-            "end_time":      e.end_time,
-            "is_active":     is_active,
-            "is_current":    is_current,
-            "status":        session.status if session else "not_started",
-            "att_status":    att_status,
+            "id":             s.id,
+            "period_number":  s.period_timing.order_index if s.period_timing else 1,
+            "period_label":   s.period_timing.label if s.period_timing else f"Period {s.id}",
+            "start_time":     start,
+            "end_time":       end,
+            "subject_id":     s.erp_subject_id,
+            "subject_name":   subject_name,
+            "subject_code":   subject_code,
+            "faculty_name":   faculty_name,
+            "room":           classroom,
+            "class_type":     s.class_type,
+            "is_current":     is_current,
+            "session_active": is_active,
         })
 
     return result
