@@ -20,61 +20,90 @@ class ProfileScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.bgPage,
-      body: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              // ─── App Bar ─────────────────────────────────
-              SliverAppBar(
-                expandedHeight: 220,
-                pinned: true,
-                backgroundColor: AppTheme.bgCard,
-                elevation: 0,
-                scrolledUnderElevation: 1,
-                surfaceTintColor: Colors.transparent,
-                leading: Navigator.of(context).canPop()
-                    ? IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                            color: AppTheme.textPrimary),
-                        onPressed: () => Get.back(),
-                      )
-                    : null,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: _ProfileHeader(auth: auth),
-                ),
-              ),
+      body: Obx(() {
+        final student = auth.currentStudent.value;
+        final faculty = auth.currentFaculty.value;
+        final role = auth.role.value;
+        final name = student?.name ?? faculty?.name ?? (role == 'faculty' ? 'Mrs. Starlin M.A' : 'User');
+        final email = student?.email ?? faculty?.email ?? (role == 'faculty' ? 'starlin.ma@ritchennai.edu.in' : '');
 
-              // ─── Content ─────────────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _InfoSection(auth: auth),
-                      const SizedBox(height: 20),
-                      if (auth.role.value == 'student') ...[
-                        _AttendanceStats(),
-                        const SizedBox(height: 20),
-                      ],
-                      _AccountActions(auth: auth),
-                    ],
-                  ),
+        return CustomScrollView(
+          slivers: [
+            // ─── App Bar ─────────────────────────────────
+            SliverAppBar(
+              expandedHeight: 220,
+              pinned: true,
+              backgroundColor: AppTheme.bgCard,
+              elevation: 0,
+              scrolledUnderElevation: 1,
+              surfaceTintColor: Colors.transparent,
+              leading: Navigator.of(context).canPop()
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                          color: AppTheme.textPrimary),
+                      onPressed: () => Get.back(),
+                    )
+                  : null,
+              flexibleSpace: FlexibleSpaceBar(
+                background: _ProfileHeader(
+                  name: name,
+                  email: email,
+                  role: role,
+                  student: student,
+                  faculty: faculty,
                 ),
               ),
-            ],
-          ),
-      ),
+            ),
+
+            // ─── Content ─────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _InfoSection(
+                      student: student,
+                      faculty: faculty,
+                      role: role,
+                    ),
+                    const SizedBox(height: 20),
+                    if (role == 'student') ...[
+                      _AttendanceStats(),
+                      const SizedBox(height: 20),
+                    ],
+                    _AccountActions(auth: auth),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
     );
   }
 }
 
 // ─── Header ────────────────────────────────────────────────
 class _ProfileHeader extends StatelessWidget {
-  final AuthController auth;
-  const _ProfileHeader({required this.auth});
+  final String name;
+  final String email;
+  final String role;
+  final dynamic student;
+  final dynamic faculty;
+
+  const _ProfileHeader({
+    required this.name,
+    required this.email,
+    required this.role,
+    this.student,
+    this.faculty,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final hasFace = student?.hasFaceRegistered == true;
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -85,107 +114,98 @@ class _ProfileHeader extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 80, 20, 20),
-        child: Obx(() {
-          final student = auth.currentStudent.value;
-          final faculty = auth.currentFaculty.value;
-          final name = student?.name ?? faculty?.name ?? 'User';
-          final role = auth.role.value;
-          final email = student?.email ?? faculty?.email ?? '';
-          final hasFace = student?.hasFaceRegistered == true;
-
-          return Row(
-            children: [
-              // Avatar
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    child: student?.faceImageUrl != null
-                        ? ClipOval(
-                            child: Image.network(
-                              student!.faceImageUrl!,
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const Icon(Icons.person, size: 40, color: Colors.white),
-                            ),
-                          )
-                        : Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                            ),
+        child: Row(
+          children: [
+            // Avatar
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  child: student?.faceImageUrl != null
+                      ? ClipOval(
+                          child: Image.network(
+                            student!.faceImageUrl!,
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.person, size: 40, color: Colors.white),
                           ),
-                  ),
-                  if (role == 'student')
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: hasFace ? AppTheme.success : AppTheme.warning,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                        )
+                      : Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        child: Icon(
-                          hasFace ? Icons.face : Icons.face_retouching_off,
-                          size: 12,
-                          color: Colors.white,
-                        ),
+                ),
+                if (role == 'student')
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: hasFace ? AppTheme.success : AppTheme.warning,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: Icon(
+                        hasFace ? Icons.face : Icons.face_retouching_off,
+                        size: 12,
+                        color: Colors.white,
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      name,
+                  ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    email,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      role.toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      email,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        role.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          );
-        }),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -193,62 +213,64 @@ class _ProfileHeader extends StatelessWidget {
 
 // ─── Info Section ─────────────────────────────────────────
 class _InfoSection extends StatelessWidget {
-  final AuthController auth;
-  const _InfoSection({required this.auth});
+  final dynamic student;
+  final dynamic faculty;
+  final String role;
+
+  const _InfoSection({
+    required this.student,
+    required this.faculty,
+    required this.role,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final student = auth.currentStudent.value;
-      final faculty = auth.currentFaculty.value;
+    final items = <_InfoItem>[];
 
-      final items = <_InfoItem>[];
-
-      if (student != null) {
-        items.addAll([
-          _InfoItem('Registration No.', student.regNo, Icons.badge_outlined),
-          _InfoItem('Department', student.department, Icons.school_outlined),
-          _InfoItem('Year / Section', '${student.year} / ${student.section}', Icons.calendar_today_outlined),
-          _InfoItem(
-            'Face Status',
-            student.hasFaceRegistered ? 'Registered ✓' : 'Not Registered',
-            Icons.face_outlined,
-            valueColor: student.hasFaceRegistered ? AppTheme.success : AppTheme.warning,
-          ),
-        ]);
-      } else if (faculty != null || auth.role.value == 'faculty') {
-        final facName = faculty?.name ?? 'Faculty Member';
-        final facEmail = faculty?.email ?? 'faculty@ritchennai.edu.in';
-        final facDept = faculty?.department ?? 'Artificial Intelligence and Machine Learning';
-        final subs = faculty?.subjects ?? [];
-        final subNames = subs.map((s) => s.subjectName).join(', ');
-
-        items.addAll([
-          _InfoItem('Faculty Name', facName, Icons.person_outline),
-          _InfoItem('Email Address', facEmail, Icons.email_outlined),
-          _InfoItem('Department', facDept, Icons.school_outlined),
-          _InfoItem('Assigned Subjects', subNames.isNotEmpty ? subNames : '${subs.length} assigned', Icons.book_outlined),
-        ]);
-      }
-
-      return Container(
-        decoration: AppTheme.glassmorphismCard,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Account Information',
-                style: TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                )),
-            const SizedBox(height: 16),
-            ...items.map((item) => _buildInfoRow(item)),
-          ],
+    if (student != null) {
+      items.addAll([
+        _InfoItem('Registration No.', student.regNo, Icons.badge_outlined),
+        _InfoItem('Department', student.department, Icons.school_outlined),
+        _InfoItem('Year / Section', '${student.year} / ${student.section}', Icons.calendar_today_outlined),
+        _InfoItem(
+          'Face Status',
+          student.hasFaceRegistered ? 'Registered ✓' : 'Not Registered',
+          Icons.face_outlined,
+          valueColor: student.hasFaceRegistered ? AppTheme.success : AppTheme.warning,
         ),
-      );
-    });
+      ]);
+    } else if (faculty != null || role == 'faculty') {
+      final facName = faculty?.name ?? 'Mrs. Starlin M.A';
+      final facEmail = faculty?.email ?? 'starlin.ma@ritchennai.edu.in';
+      final facDept = faculty?.department ?? 'Department of CSE (AI & ML)';
+      final subs = faculty?.subjects ?? [];
+      final subNames = subs.map((s) => s.subjectName).join(', ');
+
+      items.addAll([
+        _InfoItem('Faculty Name', facName, Icons.person_outline),
+        _InfoItem('Email Address', facEmail, Icons.email_outlined),
+        _InfoItem('Department', facDept, Icons.school_outlined),
+        _InfoItem('Assigned Subjects', subNames.isNotEmpty ? subNames : (subs.isNotEmpty ? '${subs.length} assigned' : 'Computer Networks, Mentoring'), Icons.book_outlined),
+      ]);
+    }
+
+    return Container(
+      decoration: AppTheme.glassmorphismCard,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Account Information',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              )),
+          const SizedBox(height: 16),
+          ...items.map((item) => _buildInfoRow(item)),
+        ],
+      ),
+    );
   }
 
   Widget _buildInfoRow(_InfoItem item) {
