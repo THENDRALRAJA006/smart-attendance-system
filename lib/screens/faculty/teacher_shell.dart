@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/sa_bottom_nav.dart';
 import 'teacher_dashboard_screen.dart';
 import 'session_history_screen.dart';
+import 'teacher_reports_screen.dart';
 import 'teacher_timetable_screen.dart';
 import '../auth/profile_screen.dart';
 
@@ -35,7 +36,7 @@ class _TeacherShellState extends State<TeacherShell> {
     _pages = const [
       TeacherDashboardScreen(),
       SessionHistoryScreen(),
-      SessionHistoryScreen(),
+      TeacherReportsScreen(),
       TeacherTimetableScreen(),
       ProfileScreen(),
     ];
