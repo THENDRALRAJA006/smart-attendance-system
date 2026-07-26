@@ -164,4 +164,24 @@ class AppConstants {
     if (rssi >= -80) return 1;
     return 0;
   }
+
+  // ─── Departments & Sections Lists (Up to G + Custom) ───────
+  static const List<String> defaultDepartments = [
+    'Computer Science and Engineering',
+    'Artificial Intelligence and Machine Learning',
+    'Artificial Intelligence and Data Science',
+    'Information Technology',
+    'Electronics and Communication Engineering',
+    'Electrical and Electronics Engineering',
+    'Mechanical Engineering',
+    'Civil Engineering',
+    'Biomedical Engineering',
+    'Chemical Engineering',
+    'Aerospace Engineering',
+    'Custom Department',
+  ];
+
+  static const List<String> defaultSections = [
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'Custom Section',
+  ];
 }

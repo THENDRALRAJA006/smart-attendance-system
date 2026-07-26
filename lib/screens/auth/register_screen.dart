@@ -27,26 +27,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordCtrl = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
-  String _selectedDept = 'Computer Science';
+  String _selectedDept = AppConstants.defaultDepartments.first;
   int _selectedYear = 1;
   String _selectedSection = 'A';
+  final _customDeptCtrl = TextEditingController();
+  final _customSecCtrl = TextEditingController();
 
   final AuthController _auth = Get.find();
 
-  final List<String> _departments = [
-    'Computer Science', 'Artificial Intelligence and Machine Learning',
-    'Electronics', 'Mechanical', 'Civil', 'Electrical', 'Information Technology',
-  ];
-  final List<String> _sections = ['A', 'B', 'C', 'D'];
+  final List<String> _departments = AppConstants.defaultDepartments;
+  final List<String> _sections = AppConstants.defaultSections;
 
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final finalDept = _selectedDept == 'Custom Department'
+        ? _customDeptCtrl.text.trim()
+        : _selectedDept;
+    final finalSec = _selectedSection == 'Custom Section'
+        ? _customSecCtrl.text.trim()
+        : _selectedSection;
+
+    if (finalDept.isEmpty || finalSec.isEmpty) {
+      Get.snackbar(
+        'Missing Details',
+        'Please enter your custom department and section name',
+        backgroundColor: AppTheme.error,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
     final success = await _auth.registerStudent(
       name:         _nameCtrl.text.trim(),
       regNo:        _regNoCtrl.text.trim(),
-      department:   _selectedDept,
+      department:   finalDept,
       year:         _selectedYear,
-      section:      _selectedSection,
+      section:      finalSec,
       email:        _emailCtrl.text.trim(),
       password:     _passwordCtrl.text,
       phoneNumber:  _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
@@ -171,6 +188,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     itemLabel: (v) => v,
                   ),
 
+                  if (_selectedDept == 'Custom Department') ...[
+                    const SizedBox(height: 10),
+                    _buildField(
+                      controller: _customDeptCtrl,
+                      label: 'Enter Custom Department Name',
+                      icon: Icons.business_outlined,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter department name' : null,
+                    ),
+                  ],
+
                   const SizedBox(height: 14),
 
                   Row(
@@ -191,11 +218,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           value: _selectedSection,
                           items: _sections,
                           onChanged: (v) => setState(() => _selectedSection = v!),
-                          itemLabel: (v) => 'Section $v',
+                          itemLabel: (v) => v == 'Custom Section' ? 'Custom...' : 'Section $v',
                         ),
                       ),
                     ],
                   ),
+
+                  if (_selectedSection == 'Custom Section') ...[
+                    const SizedBox(height: 10),
+                    _buildField(
+                      controller: _customSecCtrl,
+                      label: 'Enter Custom Section (e.g. H, I, J)',
+                      icon: Icons.class_outlined,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter section name' : null,
+                    ),
+                  ],
 
                   const SizedBox(height: 14),
 

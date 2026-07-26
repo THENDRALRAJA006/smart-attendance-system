@@ -463,7 +463,7 @@ class _TimetableEditorScreenState extends State<TimetableEditorScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       value: targetSec,
-                      items: ['A', 'B', 'C', 'D', 'E', 'F'].map((s) => DropdownMenuItem(value: s, child: Text('Sec $s'))).toList(),
+                      items: ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((s) => DropdownMenuItem(value: s, child: Text('Sec $s'))).toList(),
                       onChanged: (s) => setDState(() => targetSec = s ?? 'B'),
                       decoration: const InputDecoration(labelText: 'Section'),
                     ),

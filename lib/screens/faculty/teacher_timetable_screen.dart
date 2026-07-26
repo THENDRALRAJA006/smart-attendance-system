@@ -238,6 +238,30 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen>
                     ),
                     const SizedBox(height: 12),
 
+                    // Year & Section
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: selectedYear,
+                            decoration: const InputDecoration(labelText: 'Year', border: OutlineInputBorder()),
+                            items: [1, 2, 3, 4].map((y) => DropdownMenuItem(value: y, child: Text('Year $y'))).toList(),
+                            onChanged: (val) => setModalState(() => selectedYear = val ?? 3),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: selectedSection,
+                            decoration: const InputDecoration(labelText: 'Section', border: OutlineInputBorder()),
+                            items: ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((s) => DropdownMenuItem(value: s, child: Text('Sec $s'))).toList(),
+                            onChanged: (val) => setModalState(() => selectedSection = val ?? 'C'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
                     // Period Timing
                     if (periodTimings.isNotEmpty)
                       DropdownButtonFormField<int>(

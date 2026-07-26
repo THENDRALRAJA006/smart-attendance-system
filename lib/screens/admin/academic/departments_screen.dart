@@ -358,7 +358,7 @@ class _SectionConfigRowState extends State<_SectionConfigRow> {
         title: Text('Add Section (Year $year)', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
         content: TextField(
           controller: secCtrl,
-          decoration: const InputDecoration(labelText: 'Section Name (e.g. A, B, C, D, Unlimited)'),
+          decoration: const InputDecoration(labelText: 'Section Name (e.g. A, B, C, D, E, F, G, Custom)'),
           textCapitalization: TextCapitalization.characters,
         ),
         actions: [
