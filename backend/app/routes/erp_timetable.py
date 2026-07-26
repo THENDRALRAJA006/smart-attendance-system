@@ -318,8 +318,15 @@ def get_teacher_timetable(
     today_day = datetime.now().strftime("%A")
     now_time = datetime.now().strftime("%H:%M")
 
+    clean_name = current_user.name.replace('Mrs. ', '').replace('Mr. ', '').replace('Dr. ', '').replace('Ms. ', '').strip()
+    fac_ids = [f.id for f in db.query(Faculty).filter(
+        (Faculty.id == current_user.id) |
+        (Faculty.email == current_user.email) |
+        (Faculty.name.ilike(f"%{clean_name}%"))
+    ).all()]
+
     slots = db.query(WeeklyTimetableSlot).filter(
-        WeeklyTimetableSlot.faculty_id == current_user.id,
+        WeeklyTimetableSlot.faculty_id.in_(fac_ids),
         WeeklyTimetableSlot.is_active == True,
     ).all()
 

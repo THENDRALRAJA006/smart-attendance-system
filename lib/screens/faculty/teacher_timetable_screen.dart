@@ -82,10 +82,12 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen>
         scrolledUnderElevation: 1,
         surfaceTintColor: Colors.transparent,
         title: const Text('My Schedule'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => Get.back(),
-        ),
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () => Get.back(),
+              )
+            : null,
         actions: [
           GestureDetector(
             onTap: _startAttendanceWithAutoFill,

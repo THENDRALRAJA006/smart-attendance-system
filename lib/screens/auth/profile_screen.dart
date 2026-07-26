@@ -31,11 +31,13 @@ class ProfileScreen extends StatelessWidget {
                 elevation: 0,
                 scrolledUnderElevation: 1,
                 surfaceTintColor: Colors.transparent,
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                      color: AppTheme.textPrimary),
-                  onPressed: () => Get.back(),
-                ),
+                leading: Navigator.of(context).canPop()
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                            color: AppTheme.textPrimary),
+                        onPressed: () => Get.back(),
+                      )
+                    : null,
                 flexibleSpace: FlexibleSpaceBar(
                   background: _ProfileHeader(auth: auth),
                 ),
