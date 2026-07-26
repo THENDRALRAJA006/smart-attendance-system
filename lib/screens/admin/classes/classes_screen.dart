@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../controllers/admin_controller.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../models/models.dart';
 
 class ClassesScreen extends StatefulWidget {
   const ClassesScreen({super.key});
@@ -73,9 +74,20 @@ class _ClassesScreenState extends State<ClassesScreen> with SingleTickerProvider
             leading: const Icon(Icons.class_rounded, color: AppTheme.primary),
             title: c.roomName,
             subtitle: 'BLE: ${c.bleUuid.length > 20 ? "${c.bleUuid.substring(0,20)}..." : c.bleUuid}',
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_rounded, color: AppTheme.error, size: 20),
-              onPressed: () => _ctrl.deleteClassroom(c.id),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded, color: AppTheme.primary, size: 20),
+                  tooltip: 'Edit Classroom',
+                  onPressed: () => _editClassroomDialog(c),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_rounded, color: AppTheme.error, size: 20),
+                  tooltip: 'Delete Classroom',
+                  onPressed: () => _confirmDeleteClassroom(c),
+                ),
+              ],
             ),
           );
         },
@@ -103,6 +115,21 @@ class _ClassesScreenState extends State<ClassesScreen> with SingleTickerProvider
             leading: const Icon(Icons.book_rounded, color: AppTheme.secondary),
             title: s.subjectName,
             subtitle: '${s.subjectCode ?? "—"} • Faculty: ${s.facultyName ?? "—"}',
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded, color: AppTheme.primary, size: 20),
+                  tooltip: 'Edit Subject',
+                  onPressed: () => _editSubjectDialog(s),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_rounded, color: AppTheme.error, size: 20),
+                  tooltip: 'Delete Subject',
+                  onPressed: () => _confirmDeleteSubject(s),
+                ),
+              ],
+            ),
           );
         },
       ))),
@@ -162,6 +189,52 @@ class _ClassesScreenState extends State<ClassesScreen> with SingleTickerProvider
     ));
   }
 
+  void _editClassroomDialog(ClassroomModel c) {
+    final nameCtrl = TextEditingController(text: c.roomName);
+    final uuidCtrl = TextEditingController(text: c.bleUuid);
+    Get.dialog(AlertDialog(
+      backgroundColor: AppTheme.bgDark,
+      title: const Text('Edit Classroom', style: TextStyle(color: AppTheme.textPrimary)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        _field(nameCtrl, 'Room Name'),
+        const SizedBox(height: 10),
+        _field(uuidCtrl, 'BLE UUID'),
+      ]),
+      actions: [
+        TextButton(onPressed: Get.back, child: const Text('Cancel')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+          onPressed: () async {
+            if (nameCtrl.text.isNotEmpty && uuidCtrl.text.isNotEmpty) {
+              await _ctrl.editClassroom(c.id, nameCtrl.text, uuidCtrl.text);
+              Get.back();
+            }
+          },
+          child: const Text('Save', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ));
+  }
+
+  void _confirmDeleteClassroom(ClassroomModel c) {
+    Get.dialog(AlertDialog(
+      backgroundColor: AppTheme.bgDark,
+      title: const Text('Delete Classroom', style: TextStyle(color: AppTheme.error)),
+      content: Text('Are you sure you want to delete "${c.roomName}"?', style: const TextStyle(color: AppTheme.textPrimary)),
+      actions: [
+        TextButton(onPressed: Get.back, child: const Text('Cancel')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+          onPressed: () async {
+            await _ctrl.deleteClassroom(c.id);
+            Get.back();
+          },
+          child: const Text('Delete', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ));
+  }
+
   void _addSubjectDialog() {
     final nameCtrl = TextEditingController();
     final codeCtrl = TextEditingController();
@@ -171,8 +244,10 @@ class _ClassesScreenState extends State<ClassesScreen> with SingleTickerProvider
       backgroundColor: AppTheme.bgDark,
       title: const Text('Add Subject', style: TextStyle(color: AppTheme.textPrimary)),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        _field(nameCtrl, 'Subject Name'), _field(codeCtrl, 'Subject Code'),
-        _field(deptCtrl, 'Department'), _field(facIdCtrl, 'Faculty ID', keyboard: TextInputType.number),
+        _field(nameCtrl, 'Subject Name'), const SizedBox(height: 8),
+        _field(codeCtrl, 'Subject Code'), const SizedBox(height: 8),
+        _field(deptCtrl, 'Department'), const SizedBox(height: 8),
+        _field(facIdCtrl, 'Faculty ID', keyboard: TextInputType.number),
       ])),
       actions: [
         TextButton(onPressed: Get.back, child: const Text('Cancel')),
@@ -185,6 +260,58 @@ class _ClassesScreenState extends State<ClassesScreen> with SingleTickerProvider
             Get.back();
           },
           child: const Text('Add', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ));
+  }
+
+  void _editSubjectDialog(SubjectModel s) {
+    final nameCtrl = TextEditingController(text: s.subjectName);
+    final codeCtrl = TextEditingController(text: s.subjectCode ?? '');
+    final deptCtrl = TextEditingController(text: s.department ?? '');
+    final facIdCtrl = TextEditingController(text: '${s.facultyId ?? 0}');
+    Get.dialog(AlertDialog(
+      backgroundColor: AppTheme.bgDark,
+      title: const Text('Edit Subject', style: TextStyle(color: AppTheme.textPrimary)),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        _field(nameCtrl, 'Subject Name'), const SizedBox(height: 8),
+        _field(codeCtrl, 'Subject Code'), const SizedBox(height: 8),
+        _field(deptCtrl, 'Department'), const SizedBox(height: 8),
+        _field(facIdCtrl, 'Faculty ID', keyboard: TextInputType.number),
+      ])),
+      actions: [
+        TextButton(onPressed: Get.back, child: const Text('Cancel')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+          onPressed: () async {
+            await _ctrl.editSubject(s.id, {
+              'subject_name': nameCtrl.text,
+              'subject_code': codeCtrl.text,
+              'department': deptCtrl.text,
+              'faculty_id': int.tryParse(facIdCtrl.text) ?? s.facultyId ?? 0,
+            });
+            Get.back();
+          },
+          child: const Text('Save', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ));
+  }
+
+  void _confirmDeleteSubject(SubjectModel s) {
+    Get.dialog(AlertDialog(
+      backgroundColor: AppTheme.bgDark,
+      title: const Text('Delete Subject', style: TextStyle(color: AppTheme.error)),
+      content: Text('Are you sure you want to delete "${s.subjectName}"?', style: const TextStyle(color: AppTheme.textPrimary)),
+      actions: [
+        TextButton(onPressed: Get.back, child: const Text('Cancel')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+          onPressed: () async {
+            await _ctrl.deleteSubject(s.id);
+            Get.back();
+          },
+          child: const Text('Delete', style: TextStyle(color: Colors.white)),
         ),
       ],
     ));

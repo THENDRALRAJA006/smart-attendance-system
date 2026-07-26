@@ -377,6 +377,19 @@ class AdminController extends GetxController {
     }
   }
 
+  Future<bool> editClassroom(int id, String roomName, String bleUuid) async {
+    try {
+      await _api.put('/admin/classrooms/$id',
+          data: {'room_name': roomName, 'ble_uuid': bleUuid});
+      _setSuccess('Classroom updated');
+      await fetchClassrooms();
+      return true;
+    } catch (e) {
+      _setError(e);
+      return false;
+    }
+  }
+
   Future<bool> deleteClassroom(int id) async {
     try {
       await _api.delete('/admin/classrooms/$id');
@@ -404,6 +417,30 @@ class AdminController extends GetxController {
       final res = await _api.post('/admin/subjects', data: data);
       subjects.add(SubjectModel.fromJson(res.data));
       _setSuccess('Subject created');
+      return true;
+    } catch (e) {
+      _setError(e);
+      return false;
+    }
+  }
+
+  Future<bool> editSubject(int id, Map<String, dynamic> data) async {
+    try {
+      await _api.put('/admin/subjects/$id', data: data);
+      _setSuccess('Subject updated');
+      await fetchSubjects();
+      return true;
+    } catch (e) {
+      _setError(e);
+      return false;
+    }
+  }
+
+  Future<bool> deleteSubject(int id) async {
+    try {
+      await _api.delete('/admin/subjects/$id');
+      subjects.removeWhere((s) => s.id == id);
+      _setSuccess('Subject deleted');
       return true;
     } catch (e) {
       _setError(e);

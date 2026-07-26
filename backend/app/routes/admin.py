@@ -775,6 +775,24 @@ async def delete_classroom(
     db.commit()
 
 
+@router.put("/classrooms/{classroom_id}")
+async def update_classroom(
+    classroom_id: int,
+    request_body: ClassroomCreateRequest,
+    request: Request,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    c = db.query(Classroom).filter(Classroom.id == classroom_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Classroom not found")
+    c.room_name = request_body.room_name
+    c.ble_uuid = request_body.ble_uuid
+    db.commit()
+    db.refresh(c)
+    return {"id": c.id, "room_name": c.room_name, "ble_uuid": c.ble_uuid}
+
+
 # ══════════════════════════════════════════════════════════════
 # SUBJECTS CRUD
 # ══════════════════════════════════════════════════════════════
@@ -786,7 +804,7 @@ async def list_subjects(
 ):
     rows = (
         db.query(Subject, Faculty.name.label("faculty_name"))
-        .join(Faculty, Subject.faculty_id == Faculty.id)
+        .outerjoin(Faculty, Subject.faculty_id == Faculty.id)
         .all()
     )
     return [
@@ -796,7 +814,7 @@ async def list_subjects(
             "subject_code": r.Subject.subject_code,
             "department":   r.Subject.department,
             "faculty_id":   r.Subject.faculty_id,
-            "faculty_name": r.faculty_name,
+            "faculty_name": r.faculty_name or "—",
         }
         for r in rows
     ]
@@ -824,6 +842,45 @@ async def create_subject(
         detail={"subject_name": subject.subject_name})
 
     return {"id": subject.id, "subject_name": subject.subject_name, "faculty_id": subject.faculty_id}
+
+
+@router.put("/subjects/{subject_id}")
+async def update_subject(
+    subject_id: int,
+    request_body: SubjectCreateRequest,
+    request: Request,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    s = db.query(Subject).filter(Subject.id == subject_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    s.subject_name = request_body.subject_name
+    if request_body.subject_code is not None:
+        s.subject_code = request_body.subject_code
+    if request_body.department is not None:
+        s.department = request_body.department
+    s.faculty_id = request_body.faculty_id
+    db.commit()
+    db.refresh(s)
+    return {"id": s.id, "subject_name": s.subject_name, "faculty_id": s.faculty_id}
+
+
+@router.delete("/subjects/{subject_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_subject(
+    subject_id: int,
+    request: Request,
+    current_admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    s = db.query(Subject).filter(Subject.id == subject_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    log_action_from_admin(db, current_admin, "subject.delete", request,
+        target_type="subject", target_id=subject_id,
+        detail={"subject_name": s.subject_name})
+    db.delete(s)
+    db.commit()
 
 
 # ══════════════════════════════════════════════════════════════

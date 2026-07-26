@@ -151,13 +151,20 @@ class _ErpSubjectsScreenState extends State<ErpSubjectsScreen> {
                                 ],
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.error, size: 20),
-                              onPressed: () async {
-                                if (selectedDept != null) {
-                                  await ctrl.deleteSubject(sub.id, selectedDept!.id);
-                                }
-                              },
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, color: AppTheme.primary, size: 20),
+                                  tooltip: 'Edit Subject',
+                                  onPressed: () => _showEditSubjectDialog(context, sub),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.error, size: 20),
+                                  tooltip: 'Delete Subject',
+                                  onPressed: () => _showConfirmDeleteSubject(context, sub),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -231,6 +238,93 @@ class _ErpSubjectsScreenState extends State<ErpSubjectsScreen> {
               }
             },
             child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditSubjectDialog(BuildContext context, sub) {
+    final nameC = TextEditingController(text: sub.subjectName);
+    final codeC = TextEditingController(text: sub.subjectCode ?? '');
+    int year = sub.year ?? 1;
+    int credits = sub.credits ?? 3;
+    String type = sub.subjectType ?? 'Theory';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit Subject', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameC, decoration: const InputDecoration(labelText: 'Subject Name')),
+            const SizedBox(height: 10),
+            TextField(controller: codeC, decoration: const InputDecoration(labelText: 'Subject Code')),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    initialValue: year,
+                    items: [1, 2, 3, 4].map((y) => DropdownMenuItem(value: y, child: Text('Year $y'))).toList(),
+                    onChanged: (v) => year = v ?? 1,
+                    decoration: const InputDecoration(labelText: 'Year'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: type,
+                    items: ['Theory', 'Lab', 'Elective', 'Tutorial'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                    onChanged: (v) => type = v ?? 'Theory',
+                    decoration: const InputDecoration(labelText: 'Type'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameC.text.trim().isNotEmpty && selectedDept != null) {
+                await ctrl.createSubject(
+                  nameC.text.trim(),
+                  codeC.text.trim().isEmpty ? null : codeC.text.trim().toUpperCase(),
+                  selectedDept!.id,
+                  year,
+                  credits,
+                  type,
+                );
+                Get.back();
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showConfirmDeleteSubject(BuildContext context, sub) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Subject', style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: AppTheme.error)),
+        content: Text('Are you sure you want to delete "${sub.subjectName}"?', style: GoogleFonts.poppins()),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            onPressed: () async {
+              if (selectedDept != null) {
+                await ctrl.deleteSubject(sub.id, selectedDept!.id);
+              }
+              Get.back();
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
