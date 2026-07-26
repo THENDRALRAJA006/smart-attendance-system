@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "buildCommand": "bash scripts/build_web_ci.sh",
+  "outputDirectory": "build/web",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
