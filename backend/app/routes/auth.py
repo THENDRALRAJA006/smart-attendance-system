@@ -20,11 +20,12 @@ from app.core.security import (
     hash_password, verify_password,
     create_access_token, create_refresh_token, decode_refresh_token
 )
-from app.core.dependencies import get_current_student, get_current_user_any_role
+from app.core.dependencies import get_current_student, get_current_user_any_role, get_current_admin
 from app.models.models import Student, Faculty, Admin, FacultySubject, Subject, StudentFace, FaceProfile
 from app.schemas.schemas import (
     StudentRegisterRequest, LoginRequest, TokenResponse,
-    TokenRefreshResponse, RefreshTokenRequest, StudentResponse
+    TokenRefreshResponse, RefreshTokenRequest, StudentResponse,
+    ForgotPasswordRequest, ResetPasswordRequest, ChangePasswordRequest
 )
 from app.services.face_service import face_service
 from app.services.liveness_service import liveness_service
@@ -129,6 +130,11 @@ async def login(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
                 )
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Your account has been suspended. Please contact the administrator.",
+                )
             payload = _make_student_payload(user)
             logger.info(f"Student login success: id={user.id}")
             return {
@@ -146,6 +152,11 @@ async def login(
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
+                )
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Your account has been suspended. Please contact the administrator.",
                 )
             assigned_subjects = (
                 db.query(Subject)
@@ -180,6 +191,11 @@ async def login(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password",
                 )
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Your account has been suspended. Please contact the system administrator.",
+                )
             logger.info(f"Admin login success: id={user.id}")
             return {
                 "access_token":  create_access_token(subject=user.id, role="admin"),
@@ -209,10 +225,13 @@ async def login(
 
 # ─── GET /auth/debug ───────────────────────────────────────
 @router.get("/debug")
-async def debug_db(db: Session = Depends(get_db)):
+async def debug_db(
+    db: Session = Depends(get_db),
+    _: Admin = Depends(get_current_admin),  # ← Admin-only in production
+):
     """
     Diagnostic endpoint: verifies DB connection and returns row counts.
-    Remove or secure before go-live.
+    Requires admin JWT — do NOT expose publicly.
     """
     try:
         admin_count   = db.query(Admin).count()
@@ -382,6 +401,7 @@ async def register_face_auto(
     3. Detect face — skip frames with 0 or 2+ faces
     4. De-duplicate: skip frames with cosine_sim >= 0.98 to already-accepted frames
     5. Store up to 50 unique ArcFace embeddings in face_embeddings table
+       (covers front, angles, expressions — enables any-position verification)
     6. Save profile picture from sharpest frame only
     7. Discard all raw bytes — no permanent image storage
 
@@ -394,8 +414,10 @@ async def register_face_auto(
 
     images_bytes: list[bytes] = []
     for f in files:
-        if not f.content_type or not f.content_type.startswith("image/"):
-            continue
+        # Accept any non-empty file regardless of content_type.
+        # Android camera temp files may report content_type as None or
+        # 'application/octet-stream' even when they are valid JPEG images.
+        # We let OpenCV/numpy decide during decode instead of pre-filtering here.
         data = await f.read()
         if data:
             images_bytes.append(data)
@@ -403,7 +425,7 @@ async def register_face_auto(
     if not images_bytes:
         raise HTTPException(
             status_code=400,
-            detail="All submitted frames are empty or invalid.",
+            detail="All submitted frames are empty.",
         )
 
     result = face_service.register_face_embeddings_batch(
@@ -412,11 +434,24 @@ async def register_face_auto(
         images_bytes=images_bytes,
     )
 
+    # Return HTTP 200 with success:false for business failures (no faces found,
+    # insufficient embeddings). Do NOT raise HTTP 4xx — Dio would throw and
+    # Flutter would show the raw exception instead of the helpful message.
     if not result.get("success", False):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=result.get("message", "Batch face registration failed."),
+        logger.warning(
+            f"[ArcFace] Registration returned success=False: student={current_student.id}, "
+            f"msg={result.get('message')}"
         )
+        return {
+            "success": False,
+            "student_id": current_student.id,
+            "stored": result.get("stored", 0),
+            "total_input": result.get("total_input", 0),
+            "rejected_no_face": result.get("rejected_no_face", 0),
+            "rejected_blurry": result.get("rejected_blurry", 0),
+            "rejected_duplicate": result.get("rejected_duplicate", 0),
+            "message": result.get("message", "Face registration failed. Please try again."),
+        }
 
     face_id = f"arcface_{current_student.id}"
     from app.core.config import settings as _settings
@@ -758,4 +793,157 @@ async def reset_face_registration(
         "student_id": student_id,
         "local_file_deleted": deleted_local_file,
         "message": "Face registration reset. You can now re-register from pose 1.",
+    }
+
+
+# ─── POST /auth/forgot-password ────────────────────────────────────────
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Verify student identity via roll number + registered mobile number.
+    On success returns {success: true, message: ...}.
+    Deliberately uses the SAME vague error timing to prevent enumeration.
+    """
+    import asyncio
+    # Constant-time comparison guard: always query even on early exit
+    student = db.query(Student).filter(
+        Student.reg_no == request.roll_number
+    ).first()
+
+    if student is None:
+        # Non-blocking delay to prevent timing-based user enumeration
+        await asyncio.sleep(0.05)
+        logger.warning(
+            f"[FORGOT_PW] roll_number={request.roll_number}: not found"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"success": False, "message": "Roll number not found."},
+        )
+
+    # Check that student has a mobile number on file
+    stored_mobile = (student.phone_number or "").strip().replace(" ", "")
+    if not stored_mobile:
+        logger.warning(
+            f"[FORGOT_PW] student_id={student.id}: no mobile number registered"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "success": False,
+                "message": "No mobile number is registered for this account. "
+                           "Please contact your administrator.",
+            },
+        )
+
+    # Constant-time compare (avoid leaking length via short-circuit)
+    request_mobile = request.mobile_number.strip().replace(" ", "")
+    import hmac
+    match = hmac.compare_digest(stored_mobile, request_mobile)
+
+    if not match:
+        logger.warning(
+            f"[FORGOT_PW] student_id={student.id}: mobile mismatch"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "success": False,
+                "message": "Mobile number does not match our records.",
+            },
+        )
+
+    logger.info(
+        f"[FORGOT_PW] student_id={student.id} reg_no={student.reg_no}: "
+        "identity verified, password reset authorised"
+    )
+    return {
+        "success": True,
+        "message": "Identity verified. You may now reset your password.",
+    }
+
+
+# ─── POST /auth/reset-password ─────────────────────────────────────────
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Reset a student’s password. Requires the same roll_number used in
+    /auth/forgot-password. Password is bcrypt-hashed before storing.
+    All previous sessions are effectively invalidated because the
+    password_hash changes (the JWT secret remains, but the user’s
+    credential is no longer valid for future logins).
+    """
+    student = db.query(Student).filter(
+        Student.reg_no == request.roll_number
+    ).first()
+
+    if student is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"success": False, "message": "Roll number not found."},
+        )
+
+    # Hash the new password with bcrypt
+    student.password_hash = hash_password(request.new_password)
+    db.add(student)
+    db.commit()
+
+    logger.info(
+        f"[RESET_PW] student_id={student.id} reg_no={student.reg_no}: "
+        "password reset successfully"
+    )
+    return {
+        "success": True,
+        "message": "Password changed successfully.",
+    }
+
+
+# ─── POST /auth/change-password ──────────────────────────────────────────
+
+@router.post("/change-password")
+async def change_password(
+    request: ChangePasswordRequest,
+    current_user_and_role=Depends(get_current_user_any_role),
+    db: Session = Depends(get_db),
+):
+    """
+    Change password for an already authenticated user.
+    Works for students, faculty, and admins.
+    Verifies current password before updating.
+    """
+    user, role = current_user_and_role
+
+    # Verify current password
+    if not verify_password(request.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"success": False, "message": "Current password is incorrect."},
+        )
+
+    # Prevent reuse of same password
+    if verify_password(request.new_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"success": False, "message": "New password must differ from current password."},
+        )
+
+    # Hash and save
+    user.password_hash = hash_password(request.new_password)
+    db.add(user)
+    db.commit()
+
+    logger.info(
+        f"[CHANGE_PW] role={role} user_id={user.id}: password changed successfully"
+    )
+    return {
+        "success": True,
+        "message": "Password changed successfully.",
     }

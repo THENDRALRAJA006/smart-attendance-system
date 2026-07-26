@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS ble_beacons (
     classroom_id   INT           NOT NULL UNIQUE,
     beacon_uuid    VARCHAR(100)  NOT NULL UNIQUE,
     beacon_name    VARCHAR(100)  NOT NULL,
-    rssi_threshold INT           NOT NULL DEFAULT -70,
+    rssi_threshold INT           NOT NULL DEFAULT -75,
     tx_power       INT,
     is_active      TINYINT(1)    NOT NULL DEFAULT 1,
     last_seen_at   DATETIME,

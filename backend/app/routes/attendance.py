@@ -9,7 +9,11 @@
 # ============================================================
 
 import logging
+import time as _time
 from datetime import datetime
+from typing import Optional
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -18,10 +22,12 @@ from jose import jwt, JWTError
 from app.core.database import get_db
 from app.core.dependencies import get_current_student
 from app.core.config import settings
-from app.models.models import Student, Classroom, Subject, Session as SessionModel, Attendance
+from app.models.models import Student, Classroom, Subject, Session as SessionModel, Attendance, Faculty, FaceEmbedding
 from app.services.attendance_service import (
     get_session_by_id,
     check_duplicate_attendance,
+    check_device_in_session,
+    log_device_attendance,
     validate_rssi,
     validate_student_eligibility,
     mark_attendance,
@@ -34,7 +40,9 @@ router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
 
 class QrMarkRequest(BaseModel):
-    qr_token: str
+    qr_token: Optional[str] = None     # Legacy: full JWT token
+    session_id: Optional[int] = None   # New: after validate-qr, send session_id directly
+    rssi: Optional[int] = 0            # BLE RSSI for audit
 
 
 class QrValidateRequest(BaseModel):
@@ -53,23 +61,51 @@ async def check_active_session_for_student(
     No BLE UUID required. Used to show/hide 'Start Attendance' button.
     """
     logger.info(
-        f"[SESSION_CHECK] dept={current_student.department}, "
-        f"year={current_student.year}, section={current_student.section}"
+        f"========== SESSION CHECK ==========\n"
+        f"[SESSION_CHECK] Student ID: {current_student.id}\n"
+        f"[SESSION_CHECK] Name: {current_student.name}\n"
+        f"[SESSION_CHECK] Department: '{current_student.department}'\n"
+        f"[SESSION_CHECK] Year: {current_student.year}\n"
+        f"[SESSION_CHECK] Section: '{current_student.section}'\n"
+        f"==================================="
     )
 
-    # Find an active session targeting this student's dept/year/section
-    active_session = (
+    # Find ALL active sessions and log why each matches/fails
+    all_active = (
         db.query(SessionModel)
-        .filter(
-            SessionModel.is_active == True,
-            SessionModel.department == current_student.department,
-            SessionModel.year == current_student.year,
-            SessionModel.section == current_student.section,
-        )
-        .first()
+        .filter(SessionModel.is_active == True)
+        .all()
     )
+
+    logger.info(f"[SESSION_CHECK] Total active sessions in DB: {len(all_active)}")
+
+    for s in all_active:
+        subj = db.query(Subject).filter(Subject.id == s.subject_id).first()
+        cls = db.query(Classroom).filter(Classroom.id == s.classroom_id).first()
+        subj_dept = subj.department if subj else 'N/A'
+        student_dept = current_student.department or ''
+        dept_match = (subj_dept.strip().casefold() == student_dept.strip().casefold()) if subj_dept and student_dept else False
+        logger.info(
+            f"  Session {s.id}: subject='{subj.subject_name if subj else 'N/A'}', "
+            f"dept='{subj_dept}', classroom='{cls.room_name if cls else 'N/A'}', "
+            f"dept_match={dept_match} (student='{student_dept}' vs subject='{subj_dept}')"
+        )
+
+    # Find an active session whose subject matches the student's department
+    # Use case-insensitive comparison for department matching
+    active_session = None
+    for s in all_active:
+        subj = db.query(Subject).filter(Subject.id == s.subject_id).first()
+        if subj and subj.department:
+            student_dept = (current_student.department or '').strip().casefold()
+            subject_dept = subj.department.strip().casefold()
+            if student_dept == subject_dept:
+                active_session = s
+                logger.info(f"[SESSION_CHECK] ✅ Matched session {s.id} (dept '{subj.department}')")
+                break
 
     if not active_session:
+        logger.info(f"[SESSION_CHECK] ❌ No matching active session for dept='{current_student.department}'")
         return {"is_active": False, "session_id": None}
 
     # Check if student already marked attendance for this session
@@ -86,6 +122,20 @@ async def check_active_session_for_student(
     subject = db.query(Subject).filter(Subject.id == active_session.subject_id).first()
     classroom = db.query(Classroom).filter(Classroom.id == active_session.classroom_id).first()
 
+    logger.info(
+        f"[SESSION_CHECK] Returning: session_id={active_session.id}, "
+        f"subject='{subject.subject_name if subject else 'N/A'}', "
+        f"classroom='{classroom.room_name if classroom else 'N/A'}', "
+        f"already_marked={already_marked}"
+    )
+
+    # Check face registration (actual ArcFace embeddings)
+    face_registered = (
+        db.query(FaceEmbedding)
+        .filter(FaceEmbedding.student_id == current_student.id)
+        .count()
+    ) > 0
+
     return {
         "is_active": True,
         "session_id": active_session.id,
@@ -93,7 +143,7 @@ async def check_active_session_for_student(
         "classroom_name": classroom.room_name if classroom else "Unknown Classroom",
         "classroom_uuid": classroom.ble_uuid if classroom else "",
         "already_marked": already_marked,
-        "face_registered": True,  # Simplified — detailed check in /verify
+        "face_registered": face_registered,
     }
 
 
@@ -110,11 +160,10 @@ async def get_session_status(
     """
     active_session = (
         db.query(SessionModel)
+        .join(Subject, SessionModel.subject_id == Subject.id)
         .filter(
             SessionModel.is_active == True,
-            SessionModel.department == current_student.department,
-            SessionModel.year == current_student.year,
-            SessionModel.section == current_student.section,
+            Subject.department == current_student.department,
         )
         .first()
     )
@@ -230,7 +279,19 @@ async def get_active_session(
     Lookup current active attendance session for a classroom.
     Called when student opens the app near a BLE beacon.
     """
-    logger.info(f"[ACTIVE_SESSION_LOOKUP] UUID={classroom_uuid}, Name={classroom_name}")
+    logger.info(
+        f"========== BLE SESSION LOOKUP ==========\n"
+        f"[BLE_LOOKUP] classroom_uuid='{classroom_uuid}'\n"
+        f"[BLE_LOOKUP] classroom_name='{classroom_name}'\n"
+        f"[BLE_LOOKUP] student_id={current_student.id}\n"
+        f"========================================"
+    )
+
+    # Log all classrooms in DB for debugging
+    all_classrooms = db.query(Classroom).all()
+    logger.info(f"[BLE_LOOKUP] All classrooms in DB ({len(all_classrooms)}):")
+    for c in all_classrooms:
+        logger.info(f"  id={c.id}, room_name='{c.room_name}', ble_uuid='{c.ble_uuid}'")
 
     # Search classroom by UUID or Room Name
     classroom = db.query(Classroom).filter(
@@ -243,8 +304,13 @@ async def get_active_session(
         classroom = db.query(Classroom).filter(Classroom.ble_uuid == classroom_uuid).first()
 
     if not classroom:
-        logger.warning(f"[ACTIVE_SESSION_LOOKUP] Classroom not found for UUID={classroom_uuid}")
+        logger.warning(
+            f"[BLE_LOOKUP] ❌ Classroom not found for UUID='{classroom_uuid}', Name='{classroom_name}'\n"
+            f"  None of the {len(all_classrooms)} classrooms matched."
+        )
         return {"session_id": None}
+
+    logger.info(f"[BLE_LOOKUP] ✅ Matched classroom: id={classroom.id}, name='{classroom.room_name}'")
 
     # Query active session
     active_session = db.query(SessionModel).filter(
@@ -253,11 +319,16 @@ async def get_active_session(
     ).first()
 
     if not active_session:
-        logger.info(f"[ACTIVE_SESSION_LOOKUP] No active session in classroom={classroom.room_name}")
+        logger.info(f"[BLE_LOOKUP] ❌ No active session in classroom='{classroom.room_name}' (id={classroom.id})")
         return {"session_id": None, "is_active": False}
 
     subject = db.query(Subject).filter(Subject.id == active_session.subject_id).first()
     subject_name = subject.subject_name if subject else "Unknown Subject"
+
+    logger.info(
+        f"[BLE_LOOKUP] ✅ Active session found: id={active_session.id}, "
+        f"subject='{subject_name}', classroom='{classroom.room_name}'"
+    )
 
     return {
         "session_id": active_session.id,
@@ -368,6 +439,7 @@ async def mark_attendance_endpoint(
     rssi: int = Form(...),
     liveness_token: str | None = Form(None),
     attendance_method_hint: str | None = Form(None),
+    device_id: str | None = Form(None),   # Android ANDROID_ID — session-scoped dedup
     current_student: Student = Depends(get_current_student),
     db: Session = Depends(get_db),
 ):
@@ -377,76 +449,114 @@ async def mark_attendance_endpoint(
     Marks attendance in DB upon success.
     """
     logger.info(
-        f"[ATTENDANCE_MARK] ── START ──────────────────────────────────────"
-    )
-    logger.info(
-        f"[ATTENDANCE_MARK] Student={current_student.id} ({current_student.name}), "
-        f"Session={session_id}, RSSI={rssi} dBm, "
-        f"Liveness token present={liveness_token is not None}"
+        f"\n"
+        f"{'='*60}\n"
+        f"  ATTENDANCE MARK — START\n"
+        f"{'='*60}\n"
+        f"  Student ID:    {current_student.id}\n"
+        f"  Student Name:  {current_student.name}\n"
+        f"  Department:    {current_student.department}\n"
+        f"  Year:          {current_student.year}\n"
+        f"  Section:       {current_student.section}\n"
+        f"  Session ID:    {session_id}\n"
+        f"  RSSI:          {rssi} dBm\n"
+        f"  Method Hint:   {attendance_method_hint}\n"
+        f"  Liveness Token: {'present' if liveness_token else 'absent'}\n"
+        f"{'='*60}"
     )
 
     # 1. Validate session
     session = get_session_by_id(db, session_id)
-    logger.info(f"[SESSION] Validated: session_id={session_id}, is_active={session.is_active}")
-    logger.info(f"[BACKEND_LOG] Session loaded: session_id={session.id}, subject_id={session.subject_id}, classroom_id={session.classroom_id}")
+    subject = db.query(Subject).filter(Subject.id == session.subject_id).first()
+    classroom = db.query(Classroom).filter(Classroom.id == session.classroom_id).first()
+    logger.info(
+        f"[SESSION] ✅ Validated:\n"
+        f"  session_id={session.id}\n"
+        f"  is_active={session.is_active}\n"
+        f"  subject='{subject.subject_name if subject else 'N/A'}' (dept='{subject.department if subject else 'N/A'}')\n"
+        f"  classroom='{classroom.room_name if classroom else 'N/A'}'\n"
+        f"  faculty_id={session.faculty_id}\n"
+        f"  start_time={session.start_time}"
+    )
 
     # 2. Check duplicate attendance
     check_duplicate_attendance(db, current_student.id, session_id)
-    logger.info(f"[DUPLICATE] No duplicate found for student={current_student.id}")
+    logger.info(f"[DUPLICATE] ✅ No duplicate found for student={current_student.id}")
 
     # 3. Check department eligibility
     validate_student_eligibility(db, current_student, session)
-    logger.info(f"[ELIGIBILITY] Student={current_student.id} is eligible")
+    logger.info(f"[ELIGIBILITY] ✅ Student={current_student.id} is eligible")
 
     # 4. Check BLE range
     validate_rssi(rssi, classroom_id=session.classroom_id, db=db)
-    logger.info(f"[BLE] RSSI={rssi} dBm validated for classroom_id={session.classroom_id}")
+    logger.info(f"[BLE] ✅ RSSI={rssi} dBm validated for classroom_id={session.classroom_id}")
+
+    # 4b. Session-scoped device deduplication ─────────────────────────────────
+    # Rejects if a DIFFERENT student already used this Android device in this
+    # same session. The same device can be used again in any other session.
+    _device_id = (device_id or "").strip()
+    if _device_id:
+        check_device_in_session(db, session_id, _device_id, current_student.id)
+        logger.info(
+            f"[DEVICE_CHECK] ✅ Device '{_device_id}' cleared for "
+            f"student={current_student.id}, session={session_id}"
+        )
+    else:
+        logger.warning(
+            f"[DEVICE_CHECK] ⚠️ No device_id provided by student={current_student.id}. "
+            "Session-scoped dedup skipped."
+        )
 
     # 5. Liveness verification — NON-BLOCKING
-    #    If liveness token is provided and valid, mark liveness_verified=True.
-    #    If token is missing, invalid, or expired — proceed with liveness_verified=False.
-    #    Liveness NEVER blocks attendance; it only enriches the record.
     liveness_verified = False
     if liveness_token:
         try:
             payload = liveness_service.decode_challenge_token(liveness_token)
             if int(payload.get("sub", 0)) == current_student.id:
                 liveness_verified = True
-                logger.info(
-                    f"[LIVENESS] Verified ✅ student={current_student.id}"
-                )
+                logger.info(f"[LIVENESS] ✅ Verified for student={current_student.id}")
             else:
                 logger.warning(
-                    f"[LIVENESS] Token student mismatch — "
-                    f"token_sub={payload.get('sub')}, current={current_student.id}. "
-                    f"Proceeding without liveness."
+                    f"[LIVENESS] ⚠️ Token student mismatch — "
+                    f"token_sub={payload.get('sub')}, current={current_student.id}"
                 )
         except HTTPException:
-            logger.warning(
-                f"[LIVENESS] Token invalid/expired for student={current_student.id}. "
-                f"Proceeding without liveness."
-            )
+            logger.warning(f"[LIVENESS] ⚠️ Token invalid/expired for student={current_student.id}")
         except Exception as e:
-            logger.warning(
-                f"[LIVENESS] Unexpected error: {e}. Proceeding without liveness."
-            )
+            logger.warning(f"[LIVENESS] ⚠️ Error: {e}")
     else:
-        logger.info(
-            f"[LIVENESS] No token provided for student={current_student.id} — skipped"
-        )
-    logger.info(f"[BACKEND_LOG] Liveness verified: liveness_verified={liveness_verified} for student={current_student.id}")
+        logger.info(f"[LIVENESS] Skipped — no token provided")
 
     # 6. Face Verification (Local ArcFace)
     from app.models.models import FaceEmbedding
-    registered_faces_count = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).count()
+    registered_faces = db.query(FaceEmbedding).filter(FaceEmbedding.student_id == current_student.id).all()
+    registered_faces_count = len(registered_faces)
+
+    logger.info(
+        f"\n"
+        f"========== FACE VERIFICATION ==========\n"
+        f"  Student ID:         {current_student.id}\n"
+        f"  Session ID:         {session_id}\n"
+        f"  Embeddings Loaded:  {registered_faces_count}\n"
+        f"  Liveness Verified:  {liveness_verified}\n"
+        f"======================================="
+    )
 
     if registered_faces_count < 1:
         logger.warning(
-            f"[REGISTRATION_VALIDATION] No face registered for student={current_student.id}."
+            f"[FACE] ❌ No face registered for student={current_student.id}"
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Face not registered. Please complete face registration first.",
+        )
+
+    # Log embedding details
+    for i, emb_record in enumerate(registered_faces):
+        emb_len = len(emb_record.embedding_json) if emb_record.embedding_json else 0
+        logger.info(
+            f"  Embedding [{i}]: pose='{emb_record.pose_name}', "
+            f"json_len={emb_len}, created={emb_record.created_at}"
         )
 
     image_bytes = await file.read()
@@ -456,12 +566,7 @@ async def mark_attendance_endpoint(
             detail="Uploaded face image is empty or invalid.",
         )
 
-    logger.info("Image received")
-    logger.info(f"Image size: {len(image_bytes)} bytes")
-
-    logger.info(
-        f"[ArcFace] Verifying face embedding locally: student_id={current_student.id}"
-    )
+    logger.info(f"[FACE] Image received: {len(image_bytes)} bytes")
 
     result = face_service.verify_face_embedding(
         db=db,
@@ -474,9 +579,28 @@ async def mark_attendance_endpoint(
     tier = result.get("tier", "rejected")
 
     logger.info(
-        f"[ArcFace] Verification response: matched={matched}, "
-        f"confidence={confidence:.2f}%, tier={tier}"
+        f"\n"
+        f"========== VERIFICATION RESULT ==========\n"
+        f"  Matched:           {matched}\n"
+        f"  Similarity:        {result.get('similarity', 0.0):.4f}\n"
+        f"  Confidence:        {confidence:.2f}%\n"
+        f"  Tier:              {tier}\n"
+        f"  Message:           {result.get('message', '')}\n"
+        f"  Compared:          {result.get('compared_count', 'N/A')}/{result.get('total_stored', 'N/A')} embeddings\n"
+        f"  Best Frame:        {result.get('best_pose_name', 'N/A')} (id={result.get('best_record_id', 'N/A')})\n"
+        f"  Average Score:     {result.get('avg_score', 'N/A')}\n"
+        f"  Verification Time: {result.get('verification_time_s', 'N/A')}s\n"
+        f"========================================="
     )
+
+    # Log per-embedding similarity scores for debugging
+    per_scores = result.get("similarity_scores", [])
+    if per_scores:
+        top_scores = sorted(per_scores, reverse=True)[:10]
+        logger.info(
+            f"[FACE] Per-embedding scores (top 10 of {len(per_scores)}): "
+            f"{[f'{s:.4f}' for s in top_scores]}"
+        )
 
     if not matched or tier == "rejected":
         logger.warning(
@@ -507,8 +631,6 @@ async def mark_attendance_endpoint(
         f"liveness={liveness_verified}, rssi={rssi}"
     )
     # Determine attendance method based on hint and RSSI
-    # qr_face = validated QR token first, then face verification
-    # ble_face = BLE proximity verified first, then face verification
     if attendance_method_hint == "qr_face" and rssi == 0:
         resolved_method = "qr_face"
     else:
@@ -519,6 +641,7 @@ async def mark_attendance_endpoint(
         f"rssi={rssi}, resolved_method={resolved_method}"
     )
 
+    t_mark_start = _time.perf_counter()
     record = mark_attendance(
         db=db,
         student_id=current_student.id,
@@ -529,13 +652,39 @@ async def mark_attendance_endpoint(
         confidence_tier=tier,
         attendance_method=resolved_method,
     )
-    logger.info(f"[BACKEND_LOG] Attendance marked: record_id={record.id}, student_id={current_student.id}, session_id={session_id}, tier={tier}")
+    t_mark_elapsed = _time.perf_counter() - t_mark_start
+
+    # Write device log entry (non-blocking — failure here must not roll back attendance)
+    if _device_id:
+        try:
+            log_device_attendance(db, session_id, current_student.id, _device_id)
+        except Exception as log_exc:
+            logger.warning(
+                f"[DEVICE_LOG] Non-fatal log failure: student={current_student.id} "
+                f"session={session_id} device={_device_id} — {log_exc}"
+            )
+
+    logger.info(
+        f"[BACKEND_LOG] Attendance marked: record_id={record.id}, "
+        f"student_id={current_student.id}, session_id={session_id}, "
+        f"tier={tier}, db_write={t_mark_elapsed:.3f}s"
+    )
 
     logger.info(
         f"[ATTENDANCE_MARK] ✅ SUCCESS: attendance_id={record.id}, "
         f"student={current_student.id}, session={session_id}, "
         f"confidence={confidence:.2f}%, tier={tier}"
     )
+
+    # 8. Fetch faculty name for receipt
+    faculty_name = ""
+    if session.faculty_id:
+        faculty = db.query(Faculty).filter(Faculty.id == session.faculty_id).first()
+        if faculty:
+            faculty_name = faculty.name
+
+    subject_name   = subject.subject_name if subject else ""
+    classroom_name = classroom.room_name if classroom else ""
 
     return {
         "match": True,
@@ -547,6 +696,20 @@ async def mark_attendance_endpoint(
         "attendance_id": record.id,
         "time": record.time,
         "date": record.date.isoformat(),
+        "details": {
+            "studentName":   current_student.name,
+            "registerNo":    current_student.reg_no,
+            "department":    current_student.department,
+            "subjectName":   subject_name,
+            "classroomName": classroom_name,
+            "facultyName":   faculty_name,
+            "attendanceId":  record.id,
+            "markedAt":      f"{record.date.isoformat()} {record.time}",
+            "method":        resolved_method,
+            "livenessVerified": liveness_verified,
+            "confidenceTier":   tier,
+            "rssi":          rssi,
+        },
     }
 
 
@@ -558,36 +721,43 @@ async def mark_attendance_qr(
     db: Session = Depends(get_db),
 ):
     """
-    Fallback attendance marking using a scanned QR code.
-    Verifies the signed faculty QR token, bypasses BLE and face scans.
+    Mark attendance via QR code. Two modes:
+    - Legacy: qr_token (JWT) provided — decode and verify
+    - New: session_id provided (after /validate-qr already verified token)
     """
-    logger.info(f"[ATTENDANCE_QR] Student={current_student.id} scanning token...")
+    logger.info(f"[ATTENDANCE_QR] Student={current_student.id} marking via QR...")
 
-    # Decode and verify token
-    try:
-        payload = jwt.decode(
-            request.qr_token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
-        )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired QR code. Please scan a new one."
-        )
+    session_id = request.session_id
 
-    if payload.get("type") != "qr_attendance":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid QR token type."
-        )
-
-    session_id = payload.get("session_id")
-    if not session_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session ID missing from QR token."
-        )
+    if session_id is None:
+        # Legacy mode: decode qr_token
+        if not request.qr_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either qr_token or session_id is required."
+            )
+        try:
+            payload = jwt.decode(
+                request.qr_token,
+                settings.JWT_SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM]
+            )
+        except JWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired QR code. Please scan a new one."
+            )
+        if payload.get("type") != "qr_attendance":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid QR token type."
+            )
+        session_id = payload.get("session_id")
+        if not session_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session ID missing from QR token."
+            )
 
     # 1. Fetch Session
     session = get_session_by_id(db, session_id)
@@ -603,17 +773,30 @@ async def mark_attendance_qr(
         db=db,
         student_id=current_student.id,
         session=session,
-        rssi=0,  # 0 indicates BLE bypass
+        rssi=request.rssi or 0,  # BLE RSSI or 0 for QR-only
         face_confidence=100.0,
         liveness_verified=True,
         confidence_tier="present",
         attendance_method="qr",
     )
 
+    # Fetch enriched receipt data for Flutter result screen
+    subject = db.query(Subject).filter(Subject.id == session.subject_id).first()
+    classroom = db.query(Classroom).filter(Classroom.id == session.classroom_id).first()
+    faculty_obj = db.query(Faculty).filter(Faculty.id == session.faculty_id).first() if hasattr(session, 'faculty_id') and session.faculty_id else None
+
     return {
         "marked": True,
         "message": "Attendance marked successfully via QR code ✅",
         "attendance_id": record.id,
-        "time": record.time,
-        "date": record.date.isoformat()
+        "time": str(record.time),
+        "date": record.date.isoformat(),
+        # Enriched for Flutter result screen
+        "studentName": current_student.name,
+        "registerNo": current_student.reg_no,
+        "department": current_student.department,
+        "subjectName": subject.subject_name if subject else "",
+        "classroomName": classroom.room_name if classroom else "",
+        "facultyName": faculty_obj.name if faculty_obj else "",
+        "markedAt": f"{record.date.isoformat()} {record.time}",
     }

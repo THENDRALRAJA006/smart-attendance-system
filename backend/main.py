@@ -14,7 +14,10 @@ from fastapi.routing import APIRoute
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.routes import auth, student, faculty, admin, attendance
+from app.routes import (
+    auth, student, faculty, admin, attendance, session,
+    erp_departments, erp_subjects, erp_faculty, erp_classrooms, erp_period_timings, erp_timetable
+)
 from fastapi.staticfiles import StaticFiles
 import os
 
@@ -116,6 +119,13 @@ app.include_router(student.router)
 app.include_router(faculty.router)
 app.include_router(admin.router)
 app.include_router(attendance.router)
+app.include_router(session.router)
+app.include_router(erp_departments.router)
+app.include_router(erp_subjects.router)
+app.include_router(erp_faculty.router)
+app.include_router(erp_classrooms.router)
+app.include_router(erp_period_timings.router)
+app.include_router(erp_timetable.router)
 
 # Mount static files directory
 os.makedirs("static/faces", exist_ok=True)

@@ -169,7 +169,7 @@ void loop() {
  * RSSI CALIBRATION
  * ============================================================
  *
- * The SmartAttend Flutter app uses RSSI > -70 dBm to verify
+ * The SmartAttend Flutter app uses RSSI > -75 dBm to verify
  * classroom presence. Typical values:
  *
  * Distance  | RSSI

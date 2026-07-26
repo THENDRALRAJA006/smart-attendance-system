@@ -1,16 +1,17 @@
 // ============================================================
-// SmartAttend AI — Face Registration Screen (v5)
+// SmartAttend AI — Face Registration Screen (Enterprise v2)
 // Automatic Multi-Frame Capture → ArcFace Batch Registration
 //
 // Flow:
 //   1. Camera starts automatically
-//   2. Animated guide walks student through 8 movements:
-//      Front → Smile → Blink → Left → Right → Up → Down → Head Rotation
+//   2. Animated guide walks student through 10 movements:
+//      Front → Smile → Blink → Left → Right → Up → Down →
+//      Head Rotation → Nod → Close Eyes
 //   3. Frames captured automatically (~5 fps) during each movement
-//   4. Target: 100–150 total frames across all movements
+//   4. Target: 150 total frames across all movements
 //   5. Student taps "Start Registration" to begin
 //   6. All frames sent as batch to POST /auth/face-register-auto
-//   7. Backend: blur filter → de-duplicate → store 30–50 unique embeddings
+//   7. Backend: blur/brightness filter → de-duplicate → store 80 unique embeddings
 //   8. No images stored permanently — only embeddings
 //   9. Navigate to Student Dashboard on success
 // ============================================================
@@ -22,6 +23,7 @@ import 'package:camera/camera.dart';
 import 'package:dio/dio.dart' as dio;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:http_parser/http_parser.dart';
 
 import '../../controllers/auth_controller.dart';
 import '../../core/constants/app_constants.dart';
@@ -48,51 +50,51 @@ class _MovementStep {
 const List<_MovementStep> _movements = [
   _MovementStep(
     name: 'Front',
-    instruction: 'Look directly at the camera',
+    instruction: 'Look directly at the camera 👁️',
     icon: Icons.face_rounded,
-    durationMs: 2500,
+    durationMs: 1400,
   ),
   _MovementStep(
     name: 'Smile',
-    instruction: 'Smile naturally',
+    instruction: 'Smile naturally 😊',
     icon: Icons.sentiment_very_satisfied_rounded,
-    durationMs: 2000,
+    durationMs: 1200,
   ),
   _MovementStep(
     name: 'Blink',
-    instruction: 'Blink slowly once or twice',
+    instruction: 'Blink slowly once 😉',
     icon: Icons.remove_red_eye_rounded,
-    durationMs: 2000,
+    durationMs: 1000,
   ),
   _MovementStep(
     name: 'Turn Left',
-    instruction: 'Turn your head to the LEFT',
+    instruction: 'Turn head to the LEFT ⬅️',
     icon: Icons.arrow_back_rounded,
-    durationMs: 2500,
+    durationMs: 1400,
   ),
   _MovementStep(
     name: 'Turn Right',
-    instruction: 'Turn your head to the RIGHT',
+    instruction: 'Turn head to the RIGHT ➡️',
     icon: Icons.arrow_forward_rounded,
-    durationMs: 2500,
+    durationMs: 1400,
   ),
   _MovementStep(
     name: 'Look Up',
-    instruction: 'Tilt your head UP slightly',
+    instruction: 'Tilt your head UP slightly ⬆️',
     icon: Icons.keyboard_arrow_up_rounded,
-    durationMs: 2000,
+    durationMs: 1000,
   ),
   _MovementStep(
     name: 'Look Down',
-    instruction: 'Tilt your head DOWN slightly',
+    instruction: 'Tilt your head DOWN slightly ⬇️',
     icon: Icons.keyboard_arrow_down_rounded,
-    durationMs: 2000,
+    durationMs: 1000,
   ),
   _MovementStep(
-    name: 'Head Rotation',
-    instruction: 'Slowly rotate your head in a small circle',
-    icon: Icons.rotate_right_rounded,
-    durationMs: 3000,
+    name: 'Nod',
+    instruction: 'Nod your head up then down ↕️',
+    icon: Icons.swap_vert_rounded,
+    durationMs: 1200,
   ),
 ];
 
@@ -116,7 +118,8 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
   _RegState _state = _RegState.ready;
   int _currentMovementIndex = 0;
   int _capturedFrameCount = 0;
-  final int _targetFrames = 120;
+  // 80 frames — backend stores max 80 embeddings; 150 was redundant and slow
+  final int _targetFrames = 80;
   String? _errorMessage;
   String _statusMessage = 'Tap "Start Registration" to begin.';
 
@@ -132,8 +135,6 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
   late Animation<double> _pulseAnim;
   late AnimationController _successCtrl;
   late Animation<double> _successAnim;
-  late AnimationController _progressCtrl;
-  late Animation<double> _progressAnim;
 
   @override
   void initState() {
@@ -162,14 +163,6 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
     _successAnim = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _successCtrl, curve: Curves.elasticOut),
     );
-
-    _progressCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _progressAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _progressCtrl, curve: Curves.easeOut),
-    );
   }
 
   @override
@@ -178,7 +171,6 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
     _movementTimer?.cancel();
     _pulseCtrl.dispose();
     _successCtrl.dispose();
-    _progressCtrl.dispose();
     _cleanupTempFiles();
     super.dispose();
   }
@@ -215,33 +207,39 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
       _statusMessage = movement.instruction;
     });
 
-    // Capture frames at ~5 fps during this movement window
+    // Capture frames at ~7 fps during this movement window
     _captureTimer?.cancel();
-    _captureTimer = Timer.periodic(const Duration(milliseconds: 200), (_) async {
+    _captureTimer = Timer.periodic(const Duration(milliseconds: 150), (_) async {
       if (!mounted || _state != _RegState.capturing) return;
       await _captureOneFrame();
     });
 
-    // Advance to next movement after duration
+    // Advance to next movement after duration.
+    // If all movements are exhausted but we still need more frames,
+    // cycle back to the beginning — never upload early.
     _movementTimer?.cancel();
     _movementTimer = Timer(Duration(milliseconds: movement.durationMs), () {
       _captureTimer?.cancel();
       if (!mounted || _state != _RegState.capturing) return;
 
-      final nextIndex = _currentMovementIndex + 1;
-      if (nextIndex < _movements.length) {
-        setState(() => _currentMovementIndex = nextIndex);
-        _scheduleMovement();
-      } else {
-        // All movements done — upload batch
-        _uploadBatch();
-      }
+      final nextIndex = (_currentMovementIndex + 1) % _movements.length;
+      setState(() => _currentMovementIndex = nextIndex);
+      _scheduleMovement();
     });
   }
 
   Future<void> _captureOneFrame() async {
     if (!_camera.isInitialized.value) return;
-    if (_capturedFrameCount >= _targetFrames + 30) return; // safety cap
+    // Stop capturing once we have exactly 120 frames
+    if (_capturedPaths.length >= _targetFrames) {
+      _captureTimer?.cancel();
+      _movementTimer?.cancel();
+      // Transition immediately to processing
+      if (_state == _RegState.capturing) {
+        _uploadBatch();
+      }
+      return;
+    }
     try {
       final file = await _camera.captureImage(compress: false);
       if (!mounted) return;
@@ -250,7 +248,7 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
         _capturedFrameCount = _capturedPaths.length;
       });
     } catch (_) {
-      // Silent — missed frame is fine
+      // Silent — missed frame is fine, try again next tick
     }
   }
 
@@ -267,54 +265,40 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
       return;
     }
 
+    // ── Build FormData directly — no client-side compression ──
+    // Backend does blur/brightness/quality filtering internally.
+    // Sequential compression of 80+ files was the main bottleneck (~20-30s).
     setState(() {
       _state = _RegState.uploading;
-      _statusMessage = 'Optimizing captured frames (1/${_capturedPaths.length})...';
+      _statusMessage = 'Uploading ${_capturedPaths.length} frames...';
     });
 
     try {
       final api = ApiClient.to;
-      final List<String> optimizedPaths = [];
 
-      // Compress frames sequentially to avoid OOM on both phone and server
-      for (int i = 0; i < _capturedPaths.length; i++) {
-        final path = _capturedPaths[i];
-        if (!mounted) return;
-        setState(() {
-          _statusMessage = 'Optimizing captured frames (${i + 1}/${_capturedPaths.length})...';
-        });
-        
+      // Build multipart FormData — contentType must be image/jpeg explicitly
+      // so backend content_type filter doesn't reject temp camera files (HTTP 422)
+      final List<dio.MultipartFile> frameFiles = [];
+      for (final path in _capturedPaths) {
         try {
-          final file = File(path);
-          if (file.existsSync()) {
-            // Compress to 640px width which is standard for face detection
-            final compressed = await _camera.compressImageFile(file, width: 640, quality: 80);
-            optimizedPaths.add(compressed.path);
-          }
-        } catch (e) {
-          // Fallback to raw file if compression fails
-          optimizedPaths.add(path);
+          frameFiles.add(
+            await dio.MultipartFile.fromFile(
+              path,
+              filename: 'frame.jpg',
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        } catch (_) {
+          // Skip unreadable files silently
         }
       }
 
-      if (!mounted) return;
-      setState(() {
-        _statusMessage = 'Uploading ${optimizedPaths.length} optimized frames...';
-      });
-
-      // Replace captured paths with optimized ones for cleanup
-      _capturedPaths.clear();
-      _capturedPaths.addAll(optimizedPaths);
-
-      // Build multipart FormData with one entry per frame
-      final List<dio.MultipartFile> frameFiles = [];
-      for (final path in _capturedPaths) {
-        frameFiles.add(
-          await dio.MultipartFile.fromFile(
-            path,
-            filename: 'frame.jpg',
-          ),
-        );
+      if (frameFiles.isEmpty) {
+        setState(() {
+          _state = _RegState.failed;
+          _errorMessage = 'No valid frames to upload. Please try again.';
+        });
+        return;
       }
 
       final formData = dio.FormData();
@@ -358,9 +342,27 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
       }
     } catch (e) {
       if (!mounted) return;
+      String errorMsg;
+      if (e is dio.DioException) {
+        // Try to extract the backend's `detail` or `message` from the response body
+        final respData = e.response?.data;
+        if (respData is Map) {
+          errorMsg = (respData['detail'] ?? respData['message'] ?? e.message)
+              ?.toString() ??
+              'Upload failed. Please try again.';
+        } else if (respData is String && respData.isNotEmpty) {
+          errorMsg = respData;
+        } else {
+          errorMsg = e.type == dio.DioExceptionType.connectionError
+              ? 'Cannot reach the server. Check your internet connection.'
+              : 'Upload failed (${e.response?.statusCode ?? "no response"}). Try again.';
+        }
+      } else {
+        errorMsg = e.toString();
+      }
       setState(() {
         _state = _RegState.failed;
-        _errorMessage = 'Upload failed: ${e.toString()}';
+        _errorMessage = errorMsg;
       });
       _cleanupTempFiles();
     }
@@ -456,54 +458,91 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
 
   // ─── Progress Section ─────────────────────────────────────────
   Widget _buildProgressSection() {
+    final frameProgress = (_state == _RegState.success || _state == _RegState.uploading)
+        ? 1.0
+        : (_capturedFrameCount / _targetFrames).clamp(0.0, 1.0);
+
+    final progressColor = _state == _RegState.success
+        ? AppTheme.success
+        : _state == _RegState.uploading
+            ? AppTheme.accent
+            : AppTheme.primary;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Step counter row
+          if (_state == _RegState.capturing) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.error,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Step ${_currentMovementIndex + 1}/${_movements.length}: '
+                      '${_movements[_currentMovementIndex.clamp(0, _movements.length - 1)].name}',
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '$_capturedFrameCount/$_targetFrames frames',
+                  style: const TextStyle(color: AppTheme.textHint, fontSize: 11),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
           // Frame capture progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: _state == _RegState.success
-                  ? 1.0
-                  : (_capturedFrameCount / _targetFrames).clamp(0.0, 1.0),
-              minHeight: 8,
-              backgroundColor: AppTheme.primary.withValues(alpha: 0.12),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                _state == _RegState.success
-                    ? AppTheme.success
-                    : AppTheme.primary,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: frameProgress),
+              duration: const Duration(milliseconds: 300),
+              builder: (_, val, __) => LinearProgressIndicator(
+                value: val,
+                minHeight: 8,
+                backgroundColor: progressColor.withValues(alpha: 0.12),
+                valueColor: AlwaysStoppedAnimation<Color>(progressColor),
               ),
             ),
           ),
           const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _state == _RegState.capturing
-                    ? 'Movement ${_currentMovementIndex + 1} / ${_movements.length}: '
-                        '${_movements[_currentMovementIndex].name}'
-                    : _state == _RegState.uploading
-                        ? 'Analyzing frames...'
-                        : _state == _RegState.success
-                            ? 'Registration complete ✅'
-                            : 'Auto-capture (${_movements.length} movements)',
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12,
+          if (_state != _RegState.capturing)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _state == _RegState.uploading
+                      ? 'Processing & Uploading...'
+                      : _state == _RegState.success
+                          ? 'Registration Complete ✅'
+                          : 'Auto-capture ($_targetFrames frames)',
+                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                 ),
-              ),
-              Text(
-                '$_capturedFrameCount / $_targetFrames frames',
-                style: const TextStyle(
-                  color: AppTheme.textHint,
-                  fontSize: 11,
+                Text(
+                  _state == _RegState.uploading || _state == _RegState.success
+                      ? '$_targetFrames / $_targetFrames frames'
+                      : '$_capturedFrameCount / $_targetFrames frames',
+                  style: const TextStyle(color: AppTheme.textHint, fontSize: 11),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );
@@ -615,7 +654,7 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen>
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Detecting faces · Filtering blur · Deduplicating',
+                              'Building 80-embedding AI profile\nAny angle · Any expression',
                               style: TextStyle(
                                 color: AppTheme.textSecondary,
                                 fontSize: 11,

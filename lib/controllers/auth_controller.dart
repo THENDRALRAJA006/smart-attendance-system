@@ -383,6 +383,42 @@ class AuthController extends GetxController {
     }
   }
 
+  // ─── CHANGE PASSWORD (authenticated) ────────────────────
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    isLoading.value = true;
+    errorMessage.value = '';
+    try {
+      await _api.post(
+        AppConstants.endpointChangePassword,
+        data: {
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        },
+      );
+      return true;
+    } on dio.DioException catch (e) {
+      final data = e.response?.data;
+      String msg = 'Password change failed.';
+      if (data is Map) {
+        final d = data['detail'];
+        if (d is Map) {
+          msg = d['message'] as String? ?? msg;
+        } else if (d is String) {
+          msg = d;
+        } else if (data['message'] is String) {
+          msg = data['message'] as String;
+        }
+      }
+      errorMessage.value = msg;
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   // ─── LOGOUT ─────────────────────────────────────────────
   Future<void> logout() async {
     await StorageService.to.clearAll();

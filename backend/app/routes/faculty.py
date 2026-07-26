@@ -488,11 +488,29 @@ async def live_attendance(
         .all()
     )
 
+    # Count total enrolled students for this session's subject
+    total_enrolled = (
+        db.query(Student)
+        .filter(Student.subject_ids.contains(str(session.subject_id)))
+        .count()
+        if hasattr(Student, 'subject_ids') else 0
+    )
+    # Fallback: count distinct students who ever attended this subject's sessions
+    if total_enrolled == 0:
+        from sqlalchemy import func as _func, distinct
+        total_enrolled = (
+            db.query(_func.count(distinct(Attendance.student_id)))
+            .join(AttendanceSession, Attendance.session_id == AttendanceSession.id)
+            .filter(AttendanceSession.subject_id == session.subject_id)
+            .scalar()
+        ) or len(rows)
+
     return {
         "session_id":       session.id,
         "is_active":        session.is_active,
         "start_time":       session.start_time.isoformat(),
         "attendance_count": len(rows),
+        "total_enrolled":   total_enrolled,
         "students": [
             {
                 "student_id":     r.Attendance.student_id,
@@ -508,20 +526,8 @@ async def live_attendance(
     }
 
 
-# ─── GET /faculty/export/{format} ────────────────────────────
-
-@router.get("/export/{fmt}")
-async def export_report(
-    fmt: str,
-    period: str = "monthly",
-    current_faculty: Faculty = Depends(get_current_faculty),
-    db: Session = Depends(get_db),
-):
-    """Export attendance report. Supported formats: csv, xlsx, pdf"""
-    return await _do_export(fmt, period, current_faculty, db)
-
-
-# ─── Spec top-level export aliases ───────────────────────────
+# ─── Specific export aliases MUST be declared before generic {fmt} ──────────
+# FastAPI matches routes in declaration order — {fmt} would swallow /excel etc.
 
 @router.get("/export/excel")
 async def export_excel(
@@ -530,6 +536,16 @@ async def export_excel(
     db: Session = Depends(get_db),
 ):
     """GET /faculty/export/excel — export as XLSX."""
+    return await _do_export("xlsx", period, current_faculty, db)
+
+
+@router.get("/export/xlsx")
+async def export_xlsx(
+    period: str = "monthly",
+    current_faculty: Faculty = Depends(get_current_faculty),
+    db: Session = Depends(get_db),
+):
+    """GET /faculty/export/xlsx — export as XLSX."""
     return await _do_export("xlsx", period, current_faculty, db)
 
 
@@ -553,6 +569,19 @@ async def export_csv(
     return await _do_export("csv", period, current_faculty, db)
 
 
+# ─── Generic catch-all (declared AFTER specifics) ────────────────────────────
+
+@router.get("/export/{fmt}")
+async def export_report(
+    fmt: str,
+    period: str = "monthly",
+    current_faculty: Faculty = Depends(get_current_faculty),
+    db: Session = Depends(get_db),
+):
+    """Export attendance report. Supported formats: csv, xlsx, excel, pdf"""
+    return await _do_export(fmt, period, current_faculty, db)
+
+
 async def _do_export(
     fmt: str,
     period: str,
@@ -560,27 +589,32 @@ async def _do_export(
     db: Session,
 ) -> Response:
     """Internal helper: build and return export response."""
-    fmt = fmt.lower()
+    fmt = fmt.lower().strip()
+
+    # Normalize aliases
+    if fmt == "excel":
+        fmt = "xlsx"
+
     if fmt not in ["csv", "xlsx", "pdf"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported format. Use csv, xlsx, or pdf.",
+            detail=f"Unsupported format '{fmt}'. Use csv, xlsx, or pdf.",
         )
 
     data = _get_attendance_data(db=db, faculty_id=faculty.id, period=period)
 
     if fmt == "csv":
-        content   = generate_csv(data)
+        content    = generate_csv(data)
         media_type = "text/csv"
-        filename  = "attendance_report.csv"
+        filename   = "attendance_report.csv"
     elif fmt == "xlsx":
-        content   = generate_excel(data)
+        content    = generate_excel(data)
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        filename  = "attendance_report.xlsx"
+        filename   = "attendance_report.xlsx"
     else:
-        content   = generate_pdf(data, title=f"{period.title()} Report")
+        content    = generate_pdf(data, title=f"{period.title()} Report")
         media_type = "application/pdf"
-        filename  = "attendance_report.pdf"
+        filename   = "attendance_report.pdf"
 
     return Response(
         content=content,

@@ -276,7 +276,7 @@ Delete a faculty member.
 ### GET `/admin/ble-beacons`
 ### POST `/admin/ble-beacons`
 ```json
-{ "classroom_id": 1, "beacon_uuid": "FA:CE:B0:0C:12:34", "beacon_name": "CLASSROOM_A101", "rssi_threshold": -70 }
+{ "classroom_id": 1, "beacon_uuid": "FA:CE:B0:0C:12:34", "beacon_name": "CLASSROOM_A101", "rssi_threshold": -75 }
 ```
 ### PUT `/admin/ble-beacons/{beacon_id}`
 ### DELETE `/admin/ble-beacons/{beacon_id}`
@@ -317,7 +317,7 @@ Includes `low_attendance_alerts` (students < 75%).
        session_id=42, rssi=-65, file=face.jpg
 8. Backend validates:
    ✓ Session active
-   ✓ RSSI ≥ -70 dBm
+   ✓ RSSI ≥ -75 dBm
    ✓ Department match
    ✓ No duplicate
    ✓ ArcFace cosine similarity ≥ 0.75

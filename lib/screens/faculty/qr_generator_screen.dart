@@ -184,41 +184,30 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // ─── Header ──────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 16, 20, 0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new,
-                          color: AppTheme.textPrimary),
-                      onPressed: () => Get.back(),
-                    ),
-                    const Text('QR Attendance',
-                        style: TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        )),
-                    const Spacer(),
-                    // Fullscreen button (only when QR is generated)
-                    if (_qrToken != null)
-                      IconButton(
-                        tooltip: 'Fullscreen Board Mode',
-                        icon: const Icon(Icons.fullscreen_rounded,
-                            color: AppTheme.textSecondary, size: 26),
-                        onPressed: _openFullscreen,
-                      ),
-                  ],
-                ),
-              ),
-
+      backgroundColor: AppTheme.bgPage,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgCard,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        surfaceTintColor: Colors.transparent,
+        title: const Text('QR Attendance'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Get.back(),
+        ),
+        actions: [
+          if (_qrToken != null)
+            IconButton(
+              tooltip: 'Fullscreen Board Mode',
+              icon: const Icon(Icons.fullscreen_rounded,
+                  color: AppTheme.textSecondary, size: 26),
+              onPressed: _openFullscreen,
+            ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
@@ -486,7 +475,6 @@ class _QrGeneratorScreenState extends State<QrGeneratorScreen>
               ),
             ],
           ),
-        ),
       ),
     );
   }

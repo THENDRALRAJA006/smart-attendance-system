@@ -1,10 +1,14 @@
 // ============================================================
-// Glassmorphism Card Widget
+// SmartAttend — White Card Widget (v12 Premium Light)
+// Replaces GlassmorphismCard with white card + soft shadow.
+// Same API — all existing usages work without modification.
 // ============================================================
 
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 
+/// Premium white card with soft shadow and optional border.
+/// Replaces the old dark glassmorphism card.
 class GlassmorphismCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -14,6 +18,8 @@ class GlassmorphismCard extends StatelessWidget {
   final VoidCallback? onTap;
   final double? width;
   final double? height;
+  final Color? color;
+  final List<BoxShadow>? boxShadow;
 
   const GlassmorphismCard({
     super.key,
@@ -25,35 +31,62 @@ class GlassmorphismCard extends StatelessWidget {
     this.onTap,
     this.width,
     this.height,
+    this.color,
+    this.boxShadow,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: width,
-        height: height,
-        margin: margin,
-        padding: padding,
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            color: borderColor ?? AppTheme.primary.withValues(alpha: 0.2),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.primary.withValues(alpha: 0.06),
-              blurRadius: 20,
-              spreadRadius: 1,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    final card = Container(
+      width: width,
+      height: height,
+      margin: margin,
+      padding: onTap != null ? null : padding,
+      decoration: BoxDecoration(
+        color: color ?? AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: borderColor ?? AppTheme.border,
+          width: 1,
         ),
-        child: child,
+        boxShadow: boxShadow ?? AppTheme.cardShadow,
       ),
+      child: onTap != null
+          ? null
+          : child,
     );
+
+    if (onTap != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: width,
+          height: height,
+          margin: margin,
+          decoration: BoxDecoration(
+            color: color ?? AppTheme.bgCard,
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(
+              color: borderColor ?? AppTheme.border,
+              width: 1,
+            ),
+            boxShadow: boxShadow ?? AppTheme.cardShadow,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(borderRadius),
+              onTap: onTap,
+              child: Padding(
+                padding: padding ?? const EdgeInsets.all(20),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return card;
   }
 }

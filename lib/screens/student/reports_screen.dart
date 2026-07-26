@@ -140,65 +140,56 @@ class _ReportsScreenState extends State<ReportsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // ─── Header ────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new,
-                          color: AppTheme.textPrimary),
-                      onPressed: () => Get.back(),
-                    ),
-                    const Text('Attendance Reports',
-                        style: TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        )),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, color: AppTheme.primary),
-                      onPressed: _loadData,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.picture_as_pdf, color: AppTheme.error),
-                      onPressed: _subjectStats.isEmpty ? null : _exportPdf,
-                      tooltip: 'Export PDF',
-                    ),
+      backgroundColor: AppTheme.bgPage,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgCard,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        surfaceTintColor: Colors.transparent,
+        title: const Text('Attendance Reports'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Get.back(),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AppTheme.primary),
+            onPressed: _loadData,
+          ),
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_rounded, color: AppTheme.error),
+            onPressed: _subjectStats.isEmpty ? null : _exportPdf,
+            tooltip: 'Export PDF',
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            // ─── Tabs ──────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCard,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TabBar(
+                  controller: _tabs,
+                  indicator: BoxDecoration(
+                    color: AppTheme.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: AppTheme.textSecondary,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  tabs: const [
+                    Tab(text: 'By Subject'),
+                    Tab(text: 'Monthly Trend'),
                   ],
                 ),
               ),
-
-              // ─── Tabs ──────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgCard,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: TabBar(
-                    controller: _tabs,
-                    indicator: BoxDecoration(
-                      color: AppTheme.primary,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    labelColor: Colors.white,
-                    unselectedLabelColor: AppTheme.textSecondary,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                    tabs: const [
-                      Tab(text: 'By Subject'),
-                      Tab(text: 'Monthly Trend'),
-                    ],
-                  ),
-                ),
               ),
 
               // ─── Tab Content ───────────────────────────
@@ -216,7 +207,6 @@ class _ReportsScreenState extends State<ReportsScreen>
               ),
             ],
           ),
-        ),
       ),
     );
   }

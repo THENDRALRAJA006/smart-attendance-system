@@ -38,6 +38,7 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     """Create all tables (called on startup)."""
-    # Import all models so they register with Base
-    from app.models import models  # noqa: F401
+    # Import all models so they register with Base.metadata
+    from app.models import models        # noqa: F401  — core models + AttendanceDeviceLog
+    from app.models import device_model  # noqa: F401  — DeviceBinding (v7)
     Base.metadata.create_all(bind=engine)

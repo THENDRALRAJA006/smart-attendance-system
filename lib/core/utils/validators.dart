@@ -11,12 +11,19 @@ class Validators {
     return null;
   }
 
-  /// Password validation (min 8 chars, 1 upper, 1 digit)
+  /// Password validation (min 8 chars, 1 upper, 1 digit) — used on REGISTER
   static String? password(String? value) {
     if (value == null || value.isEmpty) return 'Password is required';
     if (value.length < 8) return 'Password must be at least 8 characters';
     if (!RegExp(r'[A-Z]').hasMatch(value)) return 'Must contain an uppercase letter';
     if (!RegExp(r'[0-9]').hasMatch(value)) return 'Must contain a number';
+    return null;
+  }
+
+  /// Login password — only checks non-empty (server validates the rest)
+  static String? loginPassword(String? value) {
+    if (value == null || value.isEmpty) return 'Password is required';
+    if (value.length < 6) return 'Password must be at least 6 characters';
     return null;
   }
 
@@ -59,6 +66,31 @@ class Validators {
     if (value == null || value.isEmpty) return 'Code is required';
     if (value.length != 6) return 'Code must be exactly 6 digits';
     if (!RegExp(r'^[0-9]+$').hasMatch(value)) return 'Code must be numeric';
+    return null;
+  }
+
+  /// Roll / Register number for forgot-password (any non-empty string)
+  static String? rollNumber(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Roll number is required';
+    return null;
+  }
+
+  /// 10-digit Indian mobile number
+  static String? mobileNumber(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Mobile number is required';
+    final digits = value.trim().replaceAll(' ', '');
+    if (!RegExp(r'^[0-9]+$').hasMatch(digits)) return 'Enter a valid 10-digit number';
+    if (digits.length != 10) return 'Mobile number must be exactly 10 digits';
+    return null;
+  }
+
+  /// Strong password: min 8, uppercase, lowercase, digit
+  static String? strongPassword(String? value) {
+    if (value == null || value.isEmpty) return 'Password is required';
+    if (value.length < 8) return 'Minimum 8 characters';
+    if (!RegExp(r'[A-Z]').hasMatch(value)) return 'Must contain an uppercase letter';
+    if (!RegExp(r'[a-z]').hasMatch(value)) return 'Must contain a lowercase letter';
+    if (!RegExp(r'[0-9]').hasMatch(value)) return 'Must contain a number';
     return null;
   }
 }

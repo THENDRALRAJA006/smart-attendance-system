@@ -189,19 +189,47 @@ class ApiClient {
     );
   }
 
+  // ─── PATCH ───────────────────────────────────────────────
+  Future<Response<T>> patch<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) async {
+    return _dio.patch<T>(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+      options: options,
+    );
+  }
+
   // ─── DOWNLOAD FILE ────────────────────────────────────────
   /// Downloads a file from [path] and saves it to [savePath] on disk.
+  /// Explicitly includes Authorization header to prevent 403 Forbidden.
   /// Shows download progress via [onProgress] callback (optional).
   Future<void> download(
     String path,
     String savePath, {
     void Function(int received, int total)? onProgress,
+    Map<String, dynamic>? queryParameters,
   }) async {
+    final token = await StorageService.to.getToken();
     await _dio.download(
       path,
       savePath,
+      queryParameters: queryParameters,
       onReceiveProgress: onProgress,
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: {
+          if (token != null) 'Authorization': 'Bearer $token',
+          'Accept': '*/*',
+        },
+        // Follow redirects and allow larger receive timeout for file downloads
+        receiveTimeout: const Duration(minutes: 5),
+        sendTimeout: const Duration(seconds: 30),
+      ),
     );
   }
 

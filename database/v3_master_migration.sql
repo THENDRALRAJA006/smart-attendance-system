@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS ble_beacons (
     classroom_id    INT          NOT NULL UNIQUE COMMENT 'Maps 1-to-1 with classrooms',
     beacon_uuid     VARCHAR(100) NOT NULL UNIQUE COMMENT 'ESP32 BLE UUID / MAC',
     beacon_name     VARCHAR(100) NOT NULL COMMENT 'e.g. CLASSROOM_A101',
-    rssi_threshold  INT          NOT NULL DEFAULT -70 COMMENT 'Min RSSI dBm for attendance',
+    rssi_threshold  INT          NOT NULL DEFAULT -75 COMMENT 'Min RSSI dBm for attendance',
     tx_power        INT          NULL COMMENT 'Beacon TX power (dBm)',
     is_active       BOOLEAN      DEFAULT TRUE,
     last_seen_at    DATETIME     NULL,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS ble_beacons (
 -- 6. Seed BLE beacons from existing classrooms (if any)
 -- ──────────────────────────────────────────────────────────────
 INSERT IGNORE INTO ble_beacons (classroom_id, beacon_uuid, beacon_name, rssi_threshold)
-SELECT id, ble_uuid, room_name, -70
+SELECT id, ble_uuid, room_name, -75
 FROM classrooms;
 
 

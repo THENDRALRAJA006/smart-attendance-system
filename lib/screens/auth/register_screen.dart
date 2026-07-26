@@ -34,8 +34,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final AuthController _auth = Get.find();
 
   final List<String> _departments = [
-    'Computer Science', 'Electronics', 'Mechanical',
-    'Civil', 'Electrical', 'Information Technology',
+    'Computer Science', 'Artificial Intelligence and Machine Learning',
+    'Electronics', 'Mechanical', 'Civil', 'Electrical', 'Information Technology',
   ];
   final List<String> _sections = ['A', 'B', 'C', 'D'];
 
@@ -95,50 +95,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 20),
+      backgroundColor: AppTheme.bgPage,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgCard,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        surfaceTintColor: Colors.transparent,
+        title: const Text('Create Account'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Get.back(),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 12),
 
-                  // ─── AppBar ──────────────────────────────────
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_ios,
-                            color: AppTheme.textPrimary, size: 20),
-                        onPressed: () => Get.back(),
-                      ),
-                      const Text(
-                        'Create Account',
-                        style: TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+                const Text(
+                  'Fill in your details to register',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 14,
                   ),
+                ),
 
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 48),
-                    child: const Text(
-                      'Fill in your details to register',
-                      style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 28),
+                const SizedBox(height: 28),
 
                   // ─── Progress Steps ──────────────────────────
                   Row(
@@ -319,9 +306,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                   ),
 
-                  const SizedBox(height: 30),
-                ],
-              ),
+                const SizedBox(height: 30),
+              ],
             ),
           ),
         ),

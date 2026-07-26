@@ -218,15 +218,17 @@ class FaceService:
 
         if existing:
             existing.embedding_json = embedding_json_str
+            existing.embedding_version = "buffalo_s"
         else:
             db.add(FaceEmbedding(
                 student_id=student_id,
                 embedding_json=embedding_json_str,
                 pose_name=pose_name,
+                embedding_version="buffalo_s",
             ))
 
         db.commit()
-        logger.info(f"[ArcFace] Stored embedding: student={student_id}, pose={pose_name}")
+        logger.info(f"[ArcFace] Stored embedding: student={student_id}, pose={pose_name}, version=buffalo_s")
 
         return {
             "success": True,
@@ -241,9 +243,11 @@ class FaceService:
         db: Session,
         student_id: int,
         images_bytes: list[bytes],
-        sharpness_threshold: float = 80.0,
+        sharpness_threshold: float = 90.0,
+        brightness_min: float = 40.0,
         dedup_threshold: float = 0.98,
-        max_stored: int = 15,   # Reduced from 50 to save ~35 embedding arrays in RAM
+        max_stored: int = 80,   # Enterprise: 80 unique embeddings for best accuracy
+        min_required: int = 15, # Registration succeeds only if at least 15 quality embeddings
     ) -> dict:
         """
         Process a batch of captured frames. Memory-optimized:
@@ -260,6 +264,7 @@ class FaceService:
         total_input = len(images_bytes)
         rejected_no_face = 0
         rejected_blurry = 0
+        rejected_dark = 0
         rejected_duplicate = 0
 
         # Store embeddings only (not decoded images)
@@ -287,6 +292,15 @@ class FaceService:
             sharpness = _laplacian_variance(img)
             if sharpness < sharpness_threshold:
                 rejected_blurry += 1
+                del img
+                continue
+
+            # 2b. Brightness filter (reject dark frames)
+            gray_check = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            brightness = float(np.mean(gray_check))
+            del gray_check
+            if brightness < brightness_min:
+                rejected_dark += 1
                 del img
                 continue
 
@@ -338,19 +352,24 @@ class FaceService:
                 gc.collect()
 
         stored_count = len(accepted_embeddings)
+        # min_required is a separate param — max_stored caps the upper bound,
+        # min_required is the lower quality gate.
 
-        if stored_count == 0:
-            logger.warning(f"[ArcFace] Batch registration failed: student={student_id}")
+        if stored_count < min_required:
+            logger.warning(
+                f"[ArcFace] Batch registration failed: student={student_id}, "
+                f"stored={stored_count} < required={min_required}"
+            )
             return {
                 "success": False,
-                "stored": 0,
+                "stored": stored_count,
                 "total_input": total_input,
                 "rejected_no_face": rejected_no_face,
                 "rejected_blurry": rejected_blurry,
                 "rejected_duplicate": rejected_duplicate,
                 "message": (
-                    "No usable face frames found. Ensure good lighting, "
-                    "single face in frame, and hold steady."
+                    f"Only {stored_count} usable face frames found (need {min_required}). "
+                    "Ensure good lighting, single face in frame, and hold steady."
                 ),
             }
 
@@ -364,6 +383,7 @@ class FaceService:
                 student_id=student_id,
                 embedding_json=json.dumps(emb.tolist()),
                 pose_name=f"auto_frame_{i:03d}",
+                embedding_version="buffalo_s",
             ))
 
         db.commit()
@@ -428,26 +448,61 @@ class FaceService:
         self, db: Session, student_id: int, live_image_bytes: bytes
     ) -> dict:
         """
-        Generate ArcFace embedding for live selfie, compare against stored
+        Generate ArcFace embedding for live selfie, compare against ALL stored
         embeddings, and return tiered verification result.
 
-        Tiers (cosine similarity):
-            >= 0.75 -> present
-            0.65 - 0.74 -> manual_review
-            < 0.65 -> rejected
+        Tiers (cosine similarity) — configurable via settings:
+            >= ARCFACE_SIMILARITY_THRESHOLD -> present
+            >= ARCFACE_REVIEW_THRESHOLD     -> manual_review
+            <  ARCFACE_REVIEW_THRESHOLD     -> rejected
+
+        CRITICAL: The comparison loop runs to completion for EVERY stored
+        embedding. There is NO early return inside the loop. The attendance
+        decision is based on the BEST similarity across ALL embeddings.
         """
+        import time as _time
+        from app.core.config import settings
+
+        t_start = _time.perf_counter()
+
+        # Get thresholds from config
+        present_threshold = settings.ARCFACE_SIMILARITY_THRESHOLD
+        review_threshold = settings.ARCFACE_REVIEW_THRESHOLD
+
+        logger.info(
+            f"[ArcFace] ========== FACE COMPARISON START ==========\n"
+            f"  Student ID: {student_id}\n"
+            f"  Present Threshold: {present_threshold}\n"
+            f"  Review Threshold: {review_threshold}"
+        )
+
+        # ── Step 1: Generate live embedding ──────────────────────
         try:
             live_emb = self.generate_embedding(live_image_bytes)
+            live_norm = float(np.linalg.norm(live_emb))
+            logger.info(
+                f"[ArcFace] ✅ Live face detected\n"
+                f"  Embedding dimension: {len(live_emb)}\n"
+                f"  Embedding norm: {live_norm:.4f}\n"
+                f"  Embedding dtype: {live_emb.dtype}"
+            )
         except HTTPException as e:
+            logger.warning(f"[ArcFace] ❌ Live face detection failed: {e.detail}")
             return {"verified": False, "similarity": 0.0, "tier": "rejected", "message": e.detail}
         except Exception as exc:
-            logger.error(f"[ArcFace] Live embedding error: {exc}")
+            logger.error(f"[ArcFace] ❌ Live embedding error: {exc}")
             return {"verified": False, "similarity": 0.0, "tier": "rejected", "message": "Failed to analyze live face image."}
 
-        stored_embeddings = self.load_student_embeddings(db, student_id)
-        logger.info(f"[ArcFace] Loaded {len(stored_embeddings)} embeddings for student={student_id}")
+        # ── Step 2: Load ALL stored embeddings (query.all(), NOT .first()) ─
+        records = (
+            db.query(FaceEmbedding)
+            .filter(FaceEmbedding.student_id == student_id)
+            .all()  # ← CRITICAL: .all() loads every row, never .first() or LIMIT 1
+        )
+        total_stored = len(records)
+        logger.info(f"[ArcFace] Loaded {total_stored} stored embeddings for student={student_id}")
 
-        if not stored_embeddings:
+        if not records:
             return {
                 "verified": False,
                 "similarity": 0.0,
@@ -455,28 +510,111 @@ class FaceService:
                 "message": "No registered face embeddings found. Please re-register your face.",
             }
 
-        max_similarity = -1.0
-        best_frame = None
-        for i, stored_emb in enumerate(stored_embeddings):
-            sim = calculate_similarity(live_emb, stored_emb)
-            if sim > max_similarity:
-                max_similarity = sim
-                best_frame = i
+        # ── Step 3: Vectorized batch comparison (numpy matrix multiply) ─
+        # Stack all stored embeddings into a matrix (N × 256),
+        # then compute all cosine similarities in ONE dot-product op.
+        emb_matrix: list[np.ndarray] = []
+        record_ids: list[int] = []
+        pose_names: list[str] = []
 
-        del stored_embeddings, live_emb
+        for record in records:
+            try:
+                stored_emb = np.array(json.loads(record.embedding_json), dtype=np.float32)
+                # L2-normalize
+                norm = np.linalg.norm(stored_emb)
+                if norm > 0:
+                    stored_emb = stored_emb / norm
+                emb_matrix.append(stored_emb)
+                record_ids.append(record.id)
+                pose_names.append(record.pose_name or '')
+            except Exception as e:
+                logger.error(f"[ArcFace] Failed to parse embedding id={record.id}: {e}")
+                continue
+
+        compared_count = len(emb_matrix)
+        if compared_count == 0:
+            return {
+                "verified": False, "similarity": 0.0, "tier": "rejected",
+                "message": "No valid embeddings found. Please re-register your face.",
+            }
+
+        # Stack into (N, 256) matrix and do single matmul: (256,) @ (256, N) = (N,)
+        emb_stack = np.stack(emb_matrix, axis=0)   # (N, 256)
+
+        # L2-normalize live embedding
+        live_norm_val = np.linalg.norm(live_emb)
+        live_emb_n = live_emb / live_norm_val if live_norm_val > 0 else live_emb
+
+        # Vectorized cosine similarities
+        similarity_scores_np = emb_stack @ live_emb_n                 # (N,)
+        similarity_scores    = similarity_scores_np.tolist()
+
+        best_idx       = int(np.argmax(similarity_scores_np))
+        max_similarity = float(similarity_scores_np[best_idx])
+        best_frame_idx = best_idx
+        best_record_id = record_ids[best_idx]
+        best_pose_name = pose_names[best_idx]
+
+        # Log top 5 for audit
+        top5_idx   = np.argsort(similarity_scores_np)[::-1][:5]
+        top5_scores = [f"{similarity_scores_np[i]:.4f} ({pose_names[i]})" for i in top5_idx]
+        logger.info(f"[ArcFace] Top-5 scores: {top5_scores}")
+
+        # ── Step 4: Cleanup ─────────────────────────────────────
+        del records, live_emb, emb_stack, emb_matrix
         gc.collect()
 
+        t_elapsed = _time.perf_counter() - t_start
+
+        # ── Step 5: Determine tier based on BEST similarity ─────
+        if max_similarity >= present_threshold:
+            tier = "present"
+            verified = True
+            msg = "Face verified successfully! ✅"
+        elif max_similarity >= review_threshold:
+            tier = "manual_review"
+            verified = True
+            msg = "Face matched but similarity is borderline. Logged for manual review. ⚠️"
+        else:
+            tier = "rejected"
+            verified = False
+            msg = "Face verification failed. Face not recognized. ❌"
+
+        # ── Step 6: Final statistics ────────────────────────────
+        avg_score = float(np.mean(similarity_scores_np))
+
         logger.info(
-            f"[ArcFace] Verification: student={student_id}, "
-            f"max_similarity={max_similarity:.4f} (best_frame={best_frame})"
+            f"\n"
+            f"========== FACE MATCH SUMMARY ==========\n"
+            f"  Student ID:          {student_id}\n"
+            f"  Stored Embeddings:   {total_stored}\n"
+            f"  Compared:            {compared_count}/{total_stored}\n"
+            f"  Best Score:          {max_similarity:.4f}\n"
+            f"  Average Score:       {avg_score:.4f}\n"
+            f"  Matched Record:      id={best_record_id} pose='{best_pose_name}'\n"
+            f"  Present Threshold:   {present_threshold}\n"
+            f"  Review Threshold:    {review_threshold}\n"
+            f"  Tier:                {tier}\n"
+            f"  Verified:            {verified}\n"
+            f"  Verification Time:   {t_elapsed:.3f}s (vectorized)\n"
+            f"  Verification = {'SUCCESS ✅' if verified else 'REJECTED ❌'}\n"
+            f"========================================="
         )
 
-        if max_similarity >= 0.75:
-            return {"verified": True, "similarity": max_similarity, "tier": "present", "message": "Face verified successfully! ✅"}
-        elif max_similarity >= 0.65:
-            return {"verified": True, "similarity": max_similarity, "tier": "manual_review", "message": "Face matched but similarity is borderline. Logged for manual review. ⚠️"}
-        else:
-            return {"verified": False, "similarity": max_similarity, "tier": "rejected", "message": "Face verification failed. Face not recognized. ❌"}
+        return {
+            "verified": verified,
+            "similarity": max_similarity,
+            "tier": tier,
+            "message": msg,
+            "similarity_scores": [round(s, 4) for s in similarity_scores],
+            "best_frame": best_frame_idx,
+            "best_record_id": best_record_id,
+            "best_pose_name": best_pose_name,
+            "compared_count": compared_count,
+            "total_stored": total_stored,
+            "avg_score": round(avg_score, 4),
+            "verification_time_s": round(t_elapsed, 3),
+        }
 
 
 # ─── Singleton service instance ──────────────────────────────

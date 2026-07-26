@@ -49,8 +49,8 @@ class Settings(BaseSettings):
     # >= ARCFACE_SIMILARITY_THRESHOLD → "present"
     # >= ARCFACE_REVIEW_THRESHOLD     → "manual_review"
     # <  ARCFACE_REVIEW_THRESHOLD     → "rejected"
-    ARCFACE_SIMILARITY_THRESHOLD: float = 0.75
-    ARCFACE_REVIEW_THRESHOLD: float = 0.65
+    ARCFACE_SIMILARITY_THRESHOLD: float = 0.65
+    ARCFACE_REVIEW_THRESHOLD: float = 0.55
     ARCFACE_MODEL_PATH: str = "./models_cache"
 
     @field_validator("ARCFACE_SIMILARITY_THRESHOLD", "ARCFACE_REVIEW_THRESHOLD")

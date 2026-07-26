@@ -1,0 +1,3233 @@
+{
+  "department": "OF COMPUTER SCIENCE AND ENGINEERING",
+  "year": 3,
+  "section": "A",
+  "semester": null,
+  "academic_year": null,
+  "effective_date": "2025-07-14",
+  "total_entries": 322,
+  "engine": "easyocr",
+  "validation_errors": [],
+  "warnings": [
+    "No faculty found: Monday P1 (Rajalakshmi)",
+    "No faculty found: Monday P2 (Rajalakshmi)",
+    "No faculty found: Monday P3 (INSTITUTE)",
+    "No faculty found: Monday P4 (INsTitutE)",
+    "No faculty found: Monday P5 (FE\u20acANOLoG Y)",
+    "No faculty found: Monday P6 (TEC HNOL0 G Y)",
+    "No faculty found: Monday P7 (0 F)",
+    "No faculty found: Monday P8 (0 F)",
+    "No faculty found: Monday P9 ((An Autonomous Institution Afflliated to Anna University; Chennai})",
+    "No faculty found: Monday P10 ((An Autonomous Institution Afflliated to Anna University, Chennai))",
+    "No faculty found: Monday P11 (OF   AND ENGINEERING)",
+    "No faculty found: Monday P12 (OF   AND ENGINEERING)",
+    "No faculty found: Monday P13 (RAJALAKSHMI  OF)",
+    "No faculty found: Monday P14 (RAJALAKSHMI  OF)",
+    "No faculty found: Monday P15 (CLASS TIME TABLE)",
+    "No faculty found: Monday P16 (CLASS TIME TABLE)",
+    "No faculty found: Monday P17 (Semester)",
+    "No faculty found: Monday P18 (Semester)",
+    "No faculty found: Monday P19 (WEF: 14.07.2025)",
+    "No faculty found: Monday P20 (WEF: 14.07.2025)",
+    "No faculty found: Monday P21 (Venue: _)",
+    "No faculty found: Monday P22 (Venue: 4203)",
+    "No faculty found: Monday P23 (08.09.2026)",
+    "No faculty found: Monday P24 (08.09.2026)",
+    "No faculty found: Monday P25 (A203)",
+    "No faculty found: Tuesday P1 (Class)",
+    "No faculty found: Tuesday P2 (Class)",
+    "No faculty found: Tuesday P3 (III AIM&ML)",
+    "No faculty found: Tuesday P4 (II AIM&ML)",
+    "No faculty found: Wednesday P1 (Day)",
+    "No faculty found: Wednesday P2 (Day)",
+    "No faculty found: Wednesday P3 (Period)",
+    "No faculty found: Wednesday P4 (Period)",
+    "No faculty found: Wednesday P5 (8.00 Am To 8.50 AM)",
+    "No faculty found: Wednesday P6 (8.00 AM TO 8.50 AM)",
+    "No faculty found: Wednesday P7 (8+50 AM 70 9.4 AM)",
+    "No faculty found: Wednesday P8 (8.50 AM To)",
+    "No faculty found: Wednesday P9 (9.40)",
+    "No faculty found: Wednesday P10 (AM)",
+    "No faculty found: Wednesday P11 (9*40 AM To L0;30 AM)",
+    "No faculty found: Wednesday P12 (9.40 _)",
+    "No faculty found: Wednesday P13 (AM To 10.30 AM)",
+    "No faculty found: Wednesday P14 (10;31 AM T0 1i@o AM)",
+    "No faculty found: Wednesday P15 (10.30 AM TO 11.20 AM)",
+    "No faculty found: Wednesday P16 (11;20 AM TO 12;10 PM)",
+    "No faculty found: Wednesday P17 (11.20 AM TO 12:10 PM)",
+    "No faculty found: Wednesday P18 (1Z:10 Fim TO 107 PM)",
+    "No faculty found: Wednesday P19 (12.10 PM TO 100 PM)",
+    "No faculty found: Wednesday P20 (1,30 PM TO 2;15 PM)",
+    "No faculty found: Wednesday P21 (1,30 PM TO 2:15 PM)",
+    "No faculty found: Thursday P1 (ECS3251)",
+    "No faculty found: Thursday P2 (ECS3251)",
+    "No faculty found: Monday P26 (Monday)",
+    "No faculty found: Monday P27 (BDA)",
+    "No faculty found: Monday P28 (BDA)",
+    "No faculty found: Monday P29 (NLP)",
+    "No faculty found: Monday P30 (NLP)",
+    "No faculty found: Monday P31 (BA)",
+    "No faculty found: Monday P32 (BA)",
+    "No faculty found: Monday P33 (Computer)",
+    "No faculty found: Monday P34 (Networks)",
+    "No faculty found: Monday P35 (Computer)",
+    "No faculty found: Monday P36 (Networks)",
+    "No faculty found: Monday P37 (BD)",
+    "No faculty found: Monday P38 (BD)",
+    "No faculty found: Monday P39 (NLP)",
+    "No faculty found: Monday P40 (NLP)",
+    "No faculty found: Monday P41 (Deep Learning)",
+    "No faculty found: Monday P42 (Deep)",
+    "No faculty found: Monday P43 (AD33511)",
+    "No faculty found: Monday P44 (AD33511)",
+    "No faculty found: Monday P45 (Learning)",
+    "No faculty found: Friday P1 (Laboratory)",
+    "No faculty found: Friday P2 (Laboratory)",
+    "No faculty found: Tuesday P5 (Tuesday)",
+    "No faculty found: Tuesday P6 (BD)",
+    "No faculty found: Tuesday P7 (BD)",
+    "No faculty found: Tuesday P8 (BA)",
+    "No faculty found: Tuesday P9 (BA)",
+    "No faculty found: Tuesday P10 (EDAA)",
+    "No faculty found: Tuesday P11 (EDAA)",
+    "No faculty found: Tuesday P12 (Deep Learning)",
+    "No faculty found: Tuesday P13 (Deep)",
+    "No faculty found: Tuesday P14 (AD33511)",
+    "No faculty found: Tuesday P15 (AD33511)",
+    "No faculty found: Tuesday P16 (Learning)",
+    "No faculty found: Tuesday P17 (Deep)",
+    "No faculty found: Tuesday P18 (Deep Learning)",
+    "No faculty found: Tuesday P19 (AD33511)",
+    "No faculty found: Tuesday P20 (AD33511)",
+    "No faculty found: Tuesday P21 (Learning)",
+    "No faculty found: Tuesday P22 (EDAA)",
+    "No faculty found: Tuesday P23 (EDAA)",
+    "No faculty found: Tuesday P24 (EDAA)",
+    "No faculty found: Tuesday P25 (EDAA)",
+    "No faculty found: Wednesday P22 (Wednesday)",
+    "No faculty found: Wednesday P23 (NLP)",
+    "No faculty found: Wednesday P24 (NLP)",
+    "No faculty found: Wednesday P25 (BA)",
+    "No faculty found: Wednesday P26 (BA)",
+    "No faculty found: Wednesday P27 (BD)",
+    "No faculty found: Wednesday P28 (BD)",
+    "No faculty found: Wednesday P29 (CN)",
+    "No faculty found: Wednesday P30 (CN)",
+    "No faculty found: Wednesday P31 (Deep Learning)",
+    "No faculty found: Wednesday P32 (Deep)",
+    "No faculty found: Wednesday P33 (AD33511)",
+    "No faculty found: Wednesday P34 (AD33511)",
+    "No faculty found: Wednesday P35 (Learning)",
+    "No faculty found: Wednesday P36 (BD)",
+    "No faculty found: Wednesday P37 (BD)",
+    "No faculty found: Wednesday P38 (CN)",
+    "No faculty found: Wednesday P39 (CN)",
+    "No faculty found: Saturday P1 (ECS3251)",
+    "No faculty found: Saturday P2 (ECS3251)",
+    "No faculty found: Saturday P3 (ECS3251)",
+    "No faculty found: Saturday P4 (ECS3251)",
+    "No faculty found: Thursday P3 (Thursday)",
+    "No faculty found: Thursday P4 (BDA)",
+    "No faculty found: Thursday P5 (BDA)",
+    "No faculty found: Thursday P6 (EDAA)",
+    "No faculty found: Thursday P7 (EDAA)",
+    "No faculty found: Thursday P8 (BD)",
+    "No faculty found: Thursday P9 (BD)",
+    "No faculty found: Thursday P10 (NLP)",
+    "No faculty found: Thursday P11 (NLP)",
+    "No faculty found: Thursday P12 (Computer)",
+    "No faculty found: Thursday P13 (Networks)",
+    "No faculty found: Thursday P14 (Computer)",
+    "No faculty found: Thursday P15 (Networks)",
+    "No faculty found: Thursday P16 (CN)",
+    "No faculty found: Thursday P17 (CN)",
+    "No faculty found: Thursday P18 (Computer)",
+    "No faculty found: Thursday P19 (Networks)",
+    "No faculty found: Thursday P20 (Computer)",
+    "No faculty found: Thursday P21 (Networks)",
+    "No faculty found: Monday P46 (Laboratory)",
+    "No faculty found: Monday P47 (Laboratory)",
+    "No faculty found: Monday P48 (Laboratory)",
+    "No faculty found: Monday P49 (Laboratory)",
+    "No faculty found: Friday P3 (Friday)",
+    "No faculty found: Friday P4 (BA)",
+    "No faculty found: Friday P5 (BA)",
+    "No faculty found: Friday P6 (EDAA)",
+    "No faculty found: Friday P7 (EDAA)",
+    "No faculty found: Friday P8 (NLP)",
+    "No faculty found: Friday P9 (NLP)",
+    "No faculty found: Friday P10 (BD)",
+    "No faculty found: Friday P11 (BD)",
+    "No faculty found: Friday P14 (10.30 AM)",
+    "No faculty found: Friday P15 (10.30 AM)",
+    "No faculty found: Friday P16 (9.40 AM)",
+    "No faculty found: Friday P17 (9:40 AM)",
+    "No faculty found: Friday P18 (TO)",
+    "No faculty found: Friday P19 (TO)",
+    "No faculty found: Tuesday P26 (SLNo)",
+    "No faculty found: Tuesday P27 (SLNo)",
+    "No faculty found: Tuesday P28 (Course)",
+    "No faculty found: Tuesday P29 (Course)",
+    "No faculty found: Tuesday P30 (Code)",
+    "No faculty found: Tuesday P31 (Code)",
+    "No faculty found: Tuesday P32 (Course Name)",
+    "No faculty found: Tuesday P33 (Course Name)",
+    "No faculty found: Tuesday P34 (Faculty In-Cherge)",
+    "No faculty found: Tuesday P35 (Faculty In-Charge)",
+    "No faculty found: Wednesday P40 (AD3351)",
+    "No faculty found: Wednesday P41 (AD33511)",
+    "No faculty found: Wednesday P42 (Deep Learning)",
+    "No faculty found: Wednesday P43 (Deep Learning)",
+    "No faculty found: Wednesday P44 (Mr-Nithin B)",
+    "No faculty found: Wednesday P45 (Mr.Nithin B)",
+    "No faculty found: Wednesday P46 (APIAIMGML)",
+    "No faculty found: Wednesday P47 (AP/AIM&ML)",
+    "No faculty found: Thursday P22 (])",
+    "No faculty found: Thursday P23 (AL23531)",
+    "No faculty found: Thursday P24 (Nacural Language Processing)",
+    "No faculty found: Thursday P25 (Natural)",
+    "No faculty found: Thursday P26 (Language Processing_)",
+    "No faculty found: Thursday P27 (Ma.Sruthi Sri Harshitha K - AP AIM&ML)",
+    "No faculty found: Thursday P28 (Ms.Sruthi Sri Harshitha K - AP/AIM&ML)",
+    "No faculty found: Friday P20 (])",
+    "No faculty found: Friday P21 (CB23531)",
+    "No faculty found: Friday P22 (Business Analyrics)",
+    "No faculty found: Friday P23 (Business Analytics)",
+    "No faculty found: Friday P24 (Mr Jeevanandham K- &ML)",
+    "No faculty found: Friday P25 (Mr_Jeevanandham K)",
+    "No faculty found: Friday P26 (AP/AIM&ML)",
+    "No faculty found: Saturday P5 (NLP)",
+    "No faculty found: Saturday P6 (NLP)",
+    "No faculty found: Saturday P7 (Natural Language Processing Laboratory)",
+    "No faculty found: Saturday P8 (Natural)",
+    "No faculty found: Saturday P9 (Language Processing Laboratory)",
+    "No faculty found: Saturday P10 (Mr Jeevanandham K - AP{AIM&ML)",
+    "No faculty found: Saturday P11 (Mr_Jeevanandham K)",
+    "No faculty found: Saturday P12 (AP/AIM&ML)",
+    "No faculty found: Monday P50 (MX23511)",
+    "No faculty found: Monday P51 (MX23511)",
+    "No faculty found: Monday P52 (Dieaster Risk Reduction and Management)",
+    "No faculty found: Monday P53 (Disaster Risk Reduction and Management)",
+    "No faculty found: Monday P54 (Mr,Sethish B)",
+    "No faculty found: Monday P55 (Mr_Sathish B)",
+    "No faculty found: Monday P56 (AP{AIM&ML)",
+    "No faculty found: Monday P57 (AP/AIM&ML)",
+    "No faculty found: Tuesday P36 (AI)",
+    "No faculty found: Tuesday P37 (AI)",
+    "No faculty found: Tuesday P38 (Exptoratory Data Analysis)",
+    "No faculty found: Tuesday P39 (Exploratory Data Analysis)",
+    "No faculty found: Tuesday P40 (Mr.Sarhish B)",
+    "No faculty found: Tuesday P41 (Mr Sathish B - AP/AIM&ML)",
+    "No faculty found: Tuesday P42 (APfAIM&ML)",
+    "No faculty found: Wednesday P48 (AI-L2Jv11)",
+    "No faculty found: Wednesday P49 (AI)",
+    "No faculty found: Wednesday P50 (Problem Solving Techniques)",
+    "No faculty found: Wednesday P51 (Problem Solving Techniques)",
+    "No faculty found: Wednesday P52 (Laboratory)",
+    "No faculty found: Wednesday P53 (Laboratory)",
+    "No faculty found: Wednesday P54 (Mr,Sechish B)",
+    "No faculty found: Wednesday P55 (Mr.Sathish B - AP/AIM&ML (L))",
+    "No faculty found: Wednesday P56 (AP{AIM&ML ())",
+    "No faculty found: Thursday P29 (AD23521)",
+    "No faculty found: Thursday P30 (AD23521)",
+    "No faculty found: Thursday P31 (Deep Learning Laboratory)",
+    "No faculty found: Thursday P32 (Deep)",
+    "No faculty found: Thursday P33 (Learning Laboratory)",
+    "No faculty found: Thursday P34 (Mr_Nithin B)",
+    "No faculty found: Thursday P35 (Mr.Nithin B)",
+    "No faculty found: Thursday P36 (AP{AIM&ML (L))",
+    "No faculty found: Thursday P37 (AP/AIM&ML (L))",
+    "No faculty found: Friday P27 (CS3251)",
+    "No faculty found: Friday P28 (CS3251)",
+    "No faculty found: Friday P29 (Computer Nctworks Laboratory)",
+    "No faculty found: Friday P30 (Computer Networks Laboratory)",
+    "No faculty found: Friday P31 (Mr,Sathish M.)",
+    "No faculty found: Friday P32 (Mr Sathish M.)",
+    "No faculty found: Friday P33 (4 - AP{AIDS)",
+    "No faculty found: Friday P34 (A - AP/AIDS)",
+    "No faculty found: Saturday P13 (GE34S1)",
+    "No faculty found: Saturday P14 (GE3451)",
+    "No faculty found: Saturday P15 (Essence of Indian Traditional Knowledge)",
+    "No faculty found: Saturday P16 (Essence of Indian Traditional Knowledge)",
+    "No faculty found: Saturday P17 (Mr_Jad)",
+    "No faculty found: Saturday P18 (Mr_Jad AP/AI&DS)",
+    "No faculty found: Monday P58 (GE3451)",
+    "No faculty found: Monday P59 (GE3451)",
+    "No faculty found: Monday P60 (Veritablc Practices)",
+    "No faculty found: Monday P61 (Veritable Practices)",
+    "No faculty found: Monday P62 (Mrs Smitha M;)",
+    "No faculty found: Monday P63 (Mrs Smitha)",
+    "No faculty found: Monday P64 (4 + AP{AIM&ML)",
+    "No faculty found: Monday P65 (A - AP/AIM&ML)",
+    "No faculty found: Tuesday P43 (NPTEL)",
+    "No faculty found: Tuesday P44 (NPTEL)",
+    "No faculty found: Tuesday P45 (NPTEL)",
+    "No faculty found: Tuesday P46 (NPTEL)",
+    "No faculty found: Wednesday P57 (Credit)",
+    "No faculty found: Wednesday P58 (Credit)",
+    "No faculty found: Wednesday P59 (Credit)",
+    "No faculty found: Wednesday P60 (Credit)",
+    "No faculty found: Thursday P38 (Mr Nithin B)",
+    "No faculty found: Thursday P39 (Mr.Nithin B - AP/AIM& ML)",
+    "No faculty found: Thursday P40 (&ML)",
+    "No faculty found: Thursday P41 (Periad)",
+    "No faculty found: Thursday P42 (Period)",
+    "No faculty found: Friday P35 (Ms Sruthi Sri Harshitha K)",
+    "No faculty found: Friday P36 (Ms.Sruthi Sri Harshitha K - AP/AIM&ML)",
+    "No faculty found: Friday P37 (AP{)",
+    "No faculty found: Saturday P19 (Mr,Jeevanandham K - AP)",
+    "No faculty found: Saturday P20 (Mr_Jeevanandham K - AP/AIM&ML)",
+    "No faculty found: Monday P66 (Mr Sathish B)",
+    "No faculty found: Monday P67 (Mr Sathish B)",
+    "No faculty found: Monday P68 (AP AIM&ML)",
+    "No faculty found: Monday P69 (AP/AIM&ML)",
+    "No faculty found: Tuesday P47 (Mr.Sathish B)",
+    "No faculty found: Tuesday P48 (Mr Sathish B)",
+    "No faculty found: Tuesday P49 (&ML (L))",
+    "No faculty found: Tuesday P50 (AP/AIM&ML (L))",
+    "No faculty found: Wednesday P61 (Mr_Nithin B)",
+    "No faculty found: Wednesday P62 (Mr.Nithin B - AP/AIM&ML (L))",
+    "No faculty found: Wednesday P63 ((L})",
+    "No faculty found: Thursday P43 (Mr Sathish M, 4 - AP{AIDS)",
+    "No faculty found: Thursday P44 (Mr.Sathish M.)",
+    "No faculty found: Thursday P45 (AP/AIDS)",
+    "No faculty found: Friday P38 (MrJJad AP AI&DS)",
+    "No faculty found: Friday P39 (Mr_Jad AP/AI&DS)",
+    "No faculty found: Saturday P21 (Mrs Smitha M)",
+    "No faculty found: Saturday P22 (Mrs_ Smitha)",
+    "No faculty found: Saturday P23 (APAAIMRML)",
+    "No faculty found: Saturday P24 (AP/AIM&ML)",
+    "No faculty found: Monday P70 (Total)",
+    "No faculty found: Monday P71 (Total)",
+    "No faculty found: Tuesday P51 (IMv)",
+    "No faculty found: Tuesday P52 ({buMcr)",
+    "No faculty found: Tuesday P53 (xY)",
+    "No faculty found: Tuesday P54 (\"ds L)",
+    "No faculty found: Tuesday P55 (L)",
+    "No faculty found: Tuesday P56 (Vwl)",
+    "No faculty found: Wednesday P64 (Time Table)",
+    "No faculty found: Wednesday P65 (Time Table)",
+    "No faculty found: Wednesday P66 (MrV Jedun Helcy)",
+    "No faculty found: Wednesday P67 (Mr.VJedun Helcy)",
+    "No faculty found: Wednesday P68 (Incharge)",
+    "No faculty found: Wednesday P69 (Incharge)",
+    "No faculty found: Wednesday P70 (Mr Sathish)",
+    "No faculty found: Wednesday P71 (Class In-charge)",
+    "No faculty found: Wednesday P72 (Mr.Sathish M: A)",
+    "No faculty found: Wednesday P73 (Class In-charge)",
+    "No faculty found: Wednesday P74 (Dr_Kiranmayee J)",
+    "No faculty found: Wednesday P75 (Dr Kiranmayee)",
+    "No faculty found: Wednesday P76 (HeD)",
+    "No faculty found: Wednesday P77 (HoD)",
+    "No faculty found: Wednesday P78 (CSE)",
+    "No faculty found: Wednesday P79 (CSE)",
+    "No faculty found: Wednesday P80 (Dean Academics)",
+    "No faculty found: Wednesday P81 (Dean Academics)",
+    "No faculty found: Wednesday P82 (Dr.P_Poongudi)",
+    "No faculty found: Wednesday P83 (Dr.P Poongodi)",
+    "No faculty found: Wednesday P84 (Dr-RMabeswaran)",
+    "No faculty found: Wednesday P85 (DrRMaheswaran)",
+    "No faculty found: Wednesday P86 (Principal)",
+    "No faculty found: Wednesday P87 (Principal)"
+  ],
+  "entries": [
+    {
+      "day": "Monday",
+      "period": 1,
+      "subject_code": null,
+      "subject_name": "Rajalakshmi",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999838974716284
+    },
+    {
+      "day": "Monday",
+      "period": 2,
+      "subject_code": null,
+      "subject_name": "Rajalakshmi",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7118430318877247
+    },
+    {
+      "day": "Monday",
+      "period": 3,
+      "subject_code": "INSTITUTE",
+      "subject_name": "INSTITUTE",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7859179176494281
+    },
+    {
+      "day": "Monday",
+      "period": 4,
+      "subject_code": null,
+      "subject_name": "INsTitutE",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3919145755032371
+    },
+    {
+      "day": "Monday",
+      "period": 5,
+      "subject_code": null,
+      "subject_name": "FE\u20acANOLoG Y",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.33514280298633636
+    },
+    {
+      "day": "Monday",
+      "period": 6,
+      "subject_code": null,
+      "subject_name": "TEC HNOL0 G Y",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4283818500223499
+    },
+    {
+      "day": "Monday",
+      "period": 7,
+      "subject_code": null,
+      "subject_name": "0 F",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9988641213336298
+    },
+    {
+      "day": "Monday",
+      "period": 8,
+      "subject_code": null,
+      "subject_name": "0 F",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9349760878930059
+    },
+    {
+      "day": "Monday",
+      "period": 9,
+      "subject_code": null,
+      "subject_name": "(An Autonomous Institution Afflliated to Anna University; Chennai}",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8822443959479216
+    },
+    {
+      "day": "Monday",
+      "period": 10,
+      "subject_code": null,
+      "subject_name": "(An Autonomous Institution Afflliated to Anna University, Chennai)",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9295121780498862
+    },
+    {
+      "day": "Monday",
+      "period": 11,
+      "subject_code": "DEPARTMENT",
+      "subject_name": "OF   AND ENGINEERING",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8577062878565107
+    },
+    {
+      "day": "Monday",
+      "period": 12,
+      "subject_code": "DEPARTMENT",
+      "subject_name": "OF   AND ENGINEERING",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9919275276455404
+    },
+    {
+      "day": "Monday",
+      "period": 13,
+      "subject_code": "INSTITUTE",
+      "subject_name": "RAJALAKSHMI  OF",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8207770721715952
+    },
+    {
+      "day": "Monday",
+      "period": 14,
+      "subject_code": "INSTITUTE",
+      "subject_name": "RAJALAKSHMI  OF",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9967547757528477
+    },
+    {
+      "day": "Monday",
+      "period": 15,
+      "subject_code": null,
+      "subject_name": "CLASS TIME TABLE",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.982965763982728
+    },
+    {
+      "day": "Monday",
+      "period": 16,
+      "subject_code": null,
+      "subject_name": "CLASS TIME TABLE",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7520273746777548
+    },
+    {
+      "day": "Monday",
+      "period": 17,
+      "subject_code": null,
+      "subject_name": "Semester",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9998118491362431
+    },
+    {
+      "day": "Monday",
+      "period": 18,
+      "subject_code": null,
+      "subject_name": "Semester",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999704970257703
+    },
+    {
+      "day": "Monday",
+      "period": 19,
+      "subject_code": null,
+      "subject_name": "WEF: 14.07.2025",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9875204595078374
+    },
+    {
+      "day": "Monday",
+      "period": 20,
+      "subject_code": null,
+      "subject_name": "WEF: 14.07.2025",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8653413918441605
+    },
+    {
+      "day": "Monday",
+      "period": 21,
+      "subject_code": null,
+      "subject_name": "Venue: _",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.41863958068905993
+    },
+    {
+      "day": "Monday",
+      "period": 22,
+      "subject_code": null,
+      "subject_name": "Venue: 4203",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7127247979383436
+    },
+    {
+      "day": "Monday",
+      "period": 23,
+      "subject_code": null,
+      "subject_name": "08.09.2026",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.87838147504034
+    },
+    {
+      "day": "Monday",
+      "period": 24,
+      "subject_code": null,
+      "subject_name": "08.09.2026",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9998586670655876
+    },
+    {
+      "day": "Monday",
+      "period": 25,
+      "subject_code": "A203",
+      "subject_name": "A203",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9159807562828064
+    },
+    {
+      "day": "Tuesday",
+      "period": 1,
+      "subject_code": null,
+      "subject_name": "Class",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999407168319049
+    },
+    {
+      "day": "Tuesday",
+      "period": 2,
+      "subject_code": null,
+      "subject_name": "Class",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999340527807767
+    },
+    {
+      "day": "Tuesday",
+      "period": 3,
+      "subject_code": null,
+      "subject_name": "III AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8876027719990753
+    },
+    {
+      "day": "Tuesday",
+      "period": 4,
+      "subject_code": null,
+      "subject_name": "II AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6949478438168123
+    },
+    {
+      "day": "Wednesday",
+      "period": 1,
+      "subject_code": null,
+      "subject_name": "Day",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9995301429974003
+    },
+    {
+      "day": "Wednesday",
+      "period": 2,
+      "subject_code": null,
+      "subject_name": "Day",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999590489306686
+    },
+    {
+      "day": "Wednesday",
+      "period": 3,
+      "subject_code": null,
+      "subject_name": "Period",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.755527956295773
+    },
+    {
+      "day": "Wednesday",
+      "period": 4,
+      "subject_code": null,
+      "subject_name": "Period",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999569781740288
+    },
+    {
+      "day": "Wednesday",
+      "period": 5,
+      "subject_code": null,
+      "subject_name": "8.00 Am To 8.50 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.19088852541344375
+    },
+    {
+      "day": "Wednesday",
+      "period": 6,
+      "subject_code": null,
+      "subject_name": "8.00 AM TO 8.50 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5197263035740457
+    },
+    {
+      "day": "Wednesday",
+      "period": 7,
+      "subject_code": null,
+      "subject_name": "8+50 AM 70 9.4 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3767547914627322
+    },
+    {
+      "day": "Wednesday",
+      "period": 8,
+      "subject_code": null,
+      "subject_name": "8.50 AM To",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.46687224332463584
+    },
+    {
+      "day": "Wednesday",
+      "period": 9,
+      "subject_code": null,
+      "subject_name": "9.40",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9469770936053109
+    },
+    {
+      "day": "Wednesday",
+      "period": 10,
+      "subject_code": null,
+      "subject_name": "AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9758988965626529
+    },
+    {
+      "day": "Wednesday",
+      "period": 11,
+      "subject_code": null,
+      "subject_name": "9*40 AM To L0;30 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.21636236801069325
+    },
+    {
+      "day": "Wednesday",
+      "period": 12,
+      "subject_code": null,
+      "subject_name": "9.40 _",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9509952347763967
+    },
+    {
+      "day": "Wednesday",
+      "period": 13,
+      "subject_code": null,
+      "subject_name": "AM To 10.30 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.47769168840843307
+    },
+    {
+      "day": "Wednesday",
+      "period": 14,
+      "subject_code": null,
+      "subject_name": "10;31 AM T0 1i@o AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.20040015883472165
+    },
+    {
+      "day": "Wednesday",
+      "period": 15,
+      "subject_code": null,
+      "subject_name": "10.30 AM TO 11.20 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.44977647218298344
+    },
+    {
+      "day": "Wednesday",
+      "period": 16,
+      "subject_code": null,
+      "subject_name": "11;20 AM TO 12;10 PM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4722587255732506
+    },
+    {
+      "day": "Wednesday",
+      "period": 17,
+      "subject_code": null,
+      "subject_name": "11.20 AM TO 12:10 PM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5124764727499289
+    },
+    {
+      "day": "Wednesday",
+      "period": 18,
+      "subject_code": null,
+      "subject_name": "1Z:10 Fim TO 107 PM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.11856229050262039
+    },
+    {
+      "day": "Wednesday",
+      "period": 19,
+      "subject_code": null,
+      "subject_name": "12.10 PM TO 100 PM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5487110672456793
+    },
+    {
+      "day": "Wednesday",
+      "period": 20,
+      "subject_code": null,
+      "subject_name": "1,30 PM TO 2;15 PM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.33222477015367746
+    },
+    {
+      "day": "Wednesday",
+      "period": 21,
+      "subject_code": null,
+      "subject_name": "1,30 PM TO 2:15 PM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4074012947274348
+    },
+    {
+      "day": "Thursday",
+      "period": 1,
+      "subject_code": "ECS3251",
+      "subject_name": "ECS3251",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9952362988719384
+    },
+    {
+      "day": "Thursday",
+      "period": 2,
+      "subject_code": "ECS3251",
+      "subject_name": "ECS3251",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9992810791432317
+    },
+    {
+      "day": "Monday",
+      "period": 26,
+      "subject_code": null,
+      "subject_name": "Monday",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999942572916315
+    },
+    {
+      "day": "Monday",
+      "period": 27,
+      "subject_code": "AD23V12",
+      "subject_name": "BDA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8845625228826105
+    },
+    {
+      "day": "Monday",
+      "period": 28,
+      "subject_code": "AD23V12",
+      "subject_name": "BDA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6196132950969994
+    },
+    {
+      "day": "Monday",
+      "period": 29,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6641650283228007
+    },
+    {
+      "day": "Monday",
+      "period": 30,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6313592042983676
+    },
+    {
+      "day": "Monday",
+      "period": 31,
+      "subject_code": "CB23531",
+      "subject_name": "BA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9882974116587899
+    },
+    {
+      "day": "Monday",
+      "period": 32,
+      "subject_code": "CB23531",
+      "subject_name": "BA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8360810056683604
+    },
+    {
+      "day": "Monday",
+      "period": 33,
+      "subject_code": null,
+      "subject_name": "Computer",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9703854817547746
+    },
+    {
+      "day": "Monday",
+      "period": 34,
+      "subject_code": null,
+      "subject_name": "Networks",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9956283606388047
+    },
+    {
+      "day": "Monday",
+      "period": 35,
+      "subject_code": null,
+      "subject_name": "Computer",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7482013341130412
+    },
+    {
+      "day": "Monday",
+      "period": 36,
+      "subject_code": null,
+      "subject_name": "Networks",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999274641840165
+    },
+    {
+      "day": "Monday",
+      "period": 37,
+      "subject_code": "AD23V12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.44208574164013886
+    },
+    {
+      "day": "Monday",
+      "period": 38,
+      "subject_code": "AD23V12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.47743107208733687
+    },
+    {
+      "day": "Monday",
+      "period": 39,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9980619054289793
+    },
+    {
+      "day": "Monday",
+      "period": 40,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7206731176087997
+    },
+    {
+      "day": "Monday",
+      "period": 41,
+      "subject_code": null,
+      "subject_name": "Deep Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9929178137453782
+    },
+    {
+      "day": "Monday",
+      "period": 42,
+      "subject_code": null,
+      "subject_name": "Deep",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9998977184295654
+    },
+    {
+      "day": "Monday",
+      "period": 43,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9842765028434596
+    },
+    {
+      "day": "Monday",
+      "period": 44,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9979256974897621
+    },
+    {
+      "day": "Monday",
+      "period": 45,
+      "subject_code": null,
+      "subject_name": "Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999520785576252
+    },
+    {
+      "day": "Friday",
+      "period": 1,
+      "subject_code": null,
+      "subject_name": "Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9988006574423527
+    },
+    {
+      "day": "Friday",
+      "period": 2,
+      "subject_code": null,
+      "subject_name": "Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999856372735888
+    },
+    {
+      "day": "Tuesday",
+      "period": 5,
+      "subject_code": null,
+      "subject_name": "Tuesday",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8672198588606558
+    },
+    {
+      "day": "Tuesday",
+      "period": 6,
+      "subject_code": "ADZV12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7813460917268177
+    },
+    {
+      "day": "Tuesday",
+      "period": 7,
+      "subject_code": "AD23V12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7555291118183641
+    },
+    {
+      "day": "Tuesday",
+      "period": 8,
+      "subject_code": "CB23531",
+      "subject_name": "BA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9931473000533472
+    },
+    {
+      "day": "Tuesday",
+      "period": 9,
+      "subject_code": "CB23531",
+      "subject_name": "BA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9968749208996063
+    },
+    {
+      "day": "Tuesday",
+      "period": 10,
+      "subject_code": "LZ3VIA",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.46380462732465516
+    },
+    {
+      "day": "Tuesday",
+      "period": 11,
+      "subject_code": "L23VII",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7708279164428425
+    },
+    {
+      "day": "Tuesday",
+      "period": 12,
+      "subject_code": null,
+      "subject_name": "Deep Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5361177443946321
+    },
+    {
+      "day": "Tuesday",
+      "period": 13,
+      "subject_code": null,
+      "subject_name": "Deep",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9998805522918701
+    },
+    {
+      "day": "Tuesday",
+      "period": 14,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9461263251030158
+    },
+    {
+      "day": "Tuesday",
+      "period": 15,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9951245638885236
+    },
+    {
+      "day": "Tuesday",
+      "period": 16,
+      "subject_code": null,
+      "subject_name": "Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6689330773740018
+    },
+    {
+      "day": "Tuesday",
+      "period": 17,
+      "subject_code": null,
+      "subject_name": "Deep",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.999845027923584
+    },
+    {
+      "day": "Tuesday",
+      "period": 18,
+      "subject_code": null,
+      "subject_name": "Deep Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9868435016250804
+    },
+    {
+      "day": "Tuesday",
+      "period": 19,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9619128370205942
+    },
+    {
+      "day": "Tuesday",
+      "period": 20,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7447395249234662
+    },
+    {
+      "day": "Tuesday",
+      "period": 21,
+      "subject_code": null,
+      "subject_name": "Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999667459074976
+    },
+    {
+      "day": "Tuesday",
+      "period": 22,
+      "subject_code": "LZSVII",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5862440652849613
+    },
+    {
+      "day": "Tuesday",
+      "period": 23,
+      "subject_code": "L23VII",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9152313811813796
+    },
+    {
+      "day": "Tuesday",
+      "period": 24,
+      "subject_code": "L23V1I",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7536618810667779
+    },
+    {
+      "day": "Tuesday",
+      "period": 25,
+      "subject_code": "L23VII",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7972268610666569
+    },
+    {
+      "day": "Wednesday",
+      "period": 22,
+      "subject_code": null,
+      "subject_name": "Wednesday",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999624089840883
+    },
+    {
+      "day": "Wednesday",
+      "period": 23,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.960452310337814
+    },
+    {
+      "day": "Wednesday",
+      "period": 24,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6323953604770985
+    },
+    {
+      "day": "Wednesday",
+      "period": 25,
+      "subject_code": "CB23531",
+      "subject_name": "BA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9749881444055073
+    },
+    {
+      "day": "Wednesday",
+      "period": 26,
+      "subject_code": "CB23531",
+      "subject_name": "BA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9940930927305105
+    },
+    {
+      "day": "Wednesday",
+      "period": 27,
+      "subject_code": "ADZ3V12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.673971184348038
+    },
+    {
+      "day": "Wednesday",
+      "period": 28,
+      "subject_code": "AD23V12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8476990019927443
+    },
+    {
+      "day": "Wednesday",
+      "period": 29,
+      "subject_code": "CS23511",
+      "subject_name": "CN",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9768378559125984
+    },
+    {
+      "day": "Wednesday",
+      "period": 30,
+      "subject_code": "CS23511",
+      "subject_name": "CN",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6693746714104548
+    },
+    {
+      "day": "Wednesday",
+      "period": 31,
+      "subject_code": null,
+      "subject_name": "Deep Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999431308438436
+    },
+    {
+      "day": "Wednesday",
+      "period": 32,
+      "subject_code": null,
+      "subject_name": "Deep",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9828782677650452
+    },
+    {
+      "day": "Wednesday",
+      "period": 33,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7845709103899718
+    },
+    {
+      "day": "Wednesday",
+      "period": 34,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6717475580526683
+    },
+    {
+      "day": "Wednesday",
+      "period": 35,
+      "subject_code": null,
+      "subject_name": "Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999841527329478
+    },
+    {
+      "day": "Wednesday",
+      "period": 36,
+      "subject_code": "AD2ZV12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7850615829758477
+    },
+    {
+      "day": "Wednesday",
+      "period": 37,
+      "subject_code": "AD23VI2",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.835239519515722
+    },
+    {
+      "day": "Wednesday",
+      "period": 38,
+      "subject_code": "CS23511",
+      "subject_name": "CN",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9967570494161476
+    },
+    {
+      "day": "Wednesday",
+      "period": 39,
+      "subject_code": "CS23511",
+      "subject_name": "CN",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9981825962285201
+    },
+    {
+      "day": "Saturday",
+      "period": 1,
+      "subject_code": "ECS3251",
+      "subject_name": "ECS3251",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9499758094140943
+    },
+    {
+      "day": "Saturday",
+      "period": 2,
+      "subject_code": "ECS3251",
+      "subject_name": "ECS3251",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9995630977084923
+    },
+    {
+      "day": "Saturday",
+      "period": 3,
+      "subject_code": "ECS3251",
+      "subject_name": "ECS3251",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9800894638938991
+    },
+    {
+      "day": "Saturday",
+      "period": 4,
+      "subject_code": "ECS3251",
+      "subject_name": "ECS3251",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9994187117393313
+    },
+    {
+      "day": "Thursday",
+      "period": 3,
+      "subject_code": null,
+      "subject_name": "Thursday",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999814131682572
+    },
+    {
+      "day": "Thursday",
+      "period": 4,
+      "subject_code": "AD23V12",
+      "subject_name": "BDA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.725806144635192
+    },
+    {
+      "day": "Thursday",
+      "period": 5,
+      "subject_code": "AD23VI2",
+      "subject_name": "BDA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5685404997888932
+    },
+    {
+      "day": "Thursday",
+      "period": 6,
+      "subject_code": "L2ZVI1",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.31537834154889327
+    },
+    {
+      "day": "Thursday",
+      "period": 7,
+      "subject_code": "L23VII",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6046995383548083
+    },
+    {
+      "day": "Thursday",
+      "period": 8,
+      "subject_code": "ADZSV12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4960045731744437
+    },
+    {
+      "day": "Thursday",
+      "period": 9,
+      "subject_code": "AD23V12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9379014504613847
+    },
+    {
+      "day": "Thursday",
+      "period": 10,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8560328681853954
+    },
+    {
+      "day": "Thursday",
+      "period": 11,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9914465450315442
+    },
+    {
+      "day": "Thursday",
+      "period": 12,
+      "subject_code": null,
+      "subject_name": "Computer",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9993726047744155
+    },
+    {
+      "day": "Thursday",
+      "period": 13,
+      "subject_code": null,
+      "subject_name": "Networks",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.999952162852994
+    },
+    {
+      "day": "Thursday",
+      "period": 14,
+      "subject_code": null,
+      "subject_name": "Computer",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9998667593123433
+    },
+    {
+      "day": "Thursday",
+      "period": 15,
+      "subject_code": null,
+      "subject_name": "Networks",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999630050416506
+    },
+    {
+      "day": "Thursday",
+      "period": 16,
+      "subject_code": "CS23511",
+      "subject_name": "CN",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9614212669812361
+    },
+    {
+      "day": "Thursday",
+      "period": 17,
+      "subject_code": "CS23511",
+      "subject_name": "CN",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.998216370653885
+    },
+    {
+      "day": "Thursday",
+      "period": 18,
+      "subject_code": null,
+      "subject_name": "Computer",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9969024942662819
+    },
+    {
+      "day": "Thursday",
+      "period": 19,
+      "subject_code": null,
+      "subject_name": "Networks",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9872302082760459
+    },
+    {
+      "day": "Thursday",
+      "period": 20,
+      "subject_code": null,
+      "subject_name": "Computer",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9997993209609002
+    },
+    {
+      "day": "Thursday",
+      "period": 21,
+      "subject_code": null,
+      "subject_name": "Networks",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999637534381791
+    },
+    {
+      "day": "Monday",
+      "period": 46,
+      "subject_code": null,
+      "subject_name": "Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9898048541633637
+    },
+    {
+      "day": "Monday",
+      "period": 47,
+      "subject_code": null,
+      "subject_name": "Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999838654853838
+    },
+    {
+      "day": "Monday",
+      "period": 48,
+      "subject_code": null,
+      "subject_name": "Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8287564217894287
+    },
+    {
+      "day": "Monday",
+      "period": 49,
+      "subject_code": null,
+      "subject_name": "Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999753080996455
+    },
+    {
+      "day": "Friday",
+      "period": 3,
+      "subject_code": null,
+      "subject_name": "Friday",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999671496613829
+    },
+    {
+      "day": "Friday",
+      "period": 4,
+      "subject_code": "CB23531",
+      "subject_name": "BA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9789332565852371
+    },
+    {
+      "day": "Friday",
+      "period": 5,
+      "subject_code": "CB23531",
+      "subject_name": "BA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9186121431994263
+    },
+    {
+      "day": "Friday",
+      "period": 6,
+      "subject_code": "L23VII",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5929554478981115
+    },
+    {
+      "day": "Friday",
+      "period": 7,
+      "subject_code": "L23VII",
+      "subject_name": "EDAA",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8435173196567487
+    },
+    {
+      "day": "Friday",
+      "period": 8,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9494462594710338
+    },
+    {
+      "day": "Friday",
+      "period": 9,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9890859510754637
+    },
+    {
+      "day": "Friday",
+      "period": 10,
+      "subject_code": "ADZ3V12",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.2599587497874127
+    },
+    {
+      "day": "Friday",
+      "period": 11,
+      "subject_code": "AD23VI2",
+      "subject_name": "BD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6260816391873517
+    },
+    {
+      "day": "Friday",
+      "period": 12,
+      "subject_code": null,
+      "subject_name": "Break",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9956414198557664
+    },
+    {
+      "day": "Friday",
+      "period": 13,
+      "subject_code": null,
+      "subject_name": "Break",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9998844187630503
+    },
+    {
+      "day": "Friday",
+      "period": 14,
+      "subject_code": null,
+      "subject_name": "10.30 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5571930421821693
+    },
+    {
+      "day": "Friday",
+      "period": 15,
+      "subject_code": null,
+      "subject_name": "10.30 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8367517104845024
+    },
+    {
+      "day": "Friday",
+      "period": 16,
+      "subject_code": null,
+      "subject_name": "9.40 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8048129943125357
+    },
+    {
+      "day": "Friday",
+      "period": 17,
+      "subject_code": null,
+      "subject_name": "9:40 AM",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5231542417973827
+    },
+    {
+      "day": "Friday",
+      "period": 18,
+      "subject_code": null,
+      "subject_name": "TO",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6708686395965248
+    },
+    {
+      "day": "Friday",
+      "period": 19,
+      "subject_code": null,
+      "subject_name": "TO",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9501820939354049
+    },
+    {
+      "day": "Tuesday",
+      "period": 26,
+      "subject_code": null,
+      "subject_name": "SLNo",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9996035695075989
+    },
+    {
+      "day": "Tuesday",
+      "period": 27,
+      "subject_code": null,
+      "subject_name": "SLNo",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9920637607574463
+    },
+    {
+      "day": "Tuesday",
+      "period": 28,
+      "subject_code": null,
+      "subject_name": "Course",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8928209240500743
+    },
+    {
+      "day": "Tuesday",
+      "period": 29,
+      "subject_code": null,
+      "subject_name": "Course",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999453466360674
+    },
+    {
+      "day": "Tuesday",
+      "period": 30,
+      "subject_code": null,
+      "subject_name": "Code",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9817155599594116
+    },
+    {
+      "day": "Tuesday",
+      "period": 31,
+      "subject_code": null,
+      "subject_name": "Code",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8288593333280594
+    },
+    {
+      "day": "Tuesday",
+      "period": 32,
+      "subject_code": null,
+      "subject_name": "Course Name",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8524748196189432
+    },
+    {
+      "day": "Tuesday",
+      "period": 33,
+      "subject_code": null,
+      "subject_name": "Course Name",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9875484695909282
+    },
+    {
+      "day": "Tuesday",
+      "period": 34,
+      "subject_code": null,
+      "subject_name": "Faculty In-Cherge",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7290682898488431
+    },
+    {
+      "day": "Tuesday",
+      "period": 35,
+      "subject_code": null,
+      "subject_name": "Faculty In-Charge",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9647556688881276
+    },
+    {
+      "day": "Wednesday",
+      "period": 40,
+      "subject_code": "AD3351",
+      "subject_name": "AD3351",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.45611173307350245
+    },
+    {
+      "day": "Wednesday",
+      "period": 41,
+      "subject_code": "AD33511",
+      "subject_name": "AD33511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7784222877235392
+    },
+    {
+      "day": "Wednesday",
+      "period": 42,
+      "subject_code": null,
+      "subject_name": "Deep Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9224469144742051
+    },
+    {
+      "day": "Wednesday",
+      "period": 43,
+      "subject_code": null,
+      "subject_name": "Deep Learning",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7271659487880472
+    },
+    {
+      "day": "Wednesday",
+      "period": 44,
+      "subject_code": null,
+      "subject_name": "Mr-Nithin B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6259087577564567
+    },
+    {
+      "day": "Wednesday",
+      "period": 45,
+      "subject_code": null,
+      "subject_name": "Mr.Nithin B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6395543107683014
+    },
+    {
+      "day": "Wednesday",
+      "period": 46,
+      "subject_code": "APIAIMGML",
+      "subject_name": "APIAIMGML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4489329559711337
+    },
+    {
+      "day": "Wednesday",
+      "period": 47,
+      "subject_code": null,
+      "subject_name": "AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8584117126977239
+    },
+    {
+      "day": "Thursday",
+      "period": 22,
+      "subject_code": "AL2353",
+      "subject_name": "]",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4996036028225184
+    },
+    {
+      "day": "Thursday",
+      "period": 23,
+      "subject_code": "AL23531",
+      "subject_name": "AL23531",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9809325469098374
+    },
+    {
+      "day": "Thursday",
+      "period": 24,
+      "subject_code": null,
+      "subject_name": "Nacural Language Processing",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6707220302541756
+    },
+    {
+      "day": "Thursday",
+      "period": 25,
+      "subject_code": null,
+      "subject_name": "Natural",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9979918786963883
+    },
+    {
+      "day": "Thursday",
+      "period": 26,
+      "subject_code": null,
+      "subject_name": "Language Processing_",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9423298711135739
+    },
+    {
+      "day": "Thursday",
+      "period": 27,
+      "subject_code": null,
+      "subject_name": "Ma.Sruthi Sri Harshitha K - AP AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5077864015363943
+    },
+    {
+      "day": "Thursday",
+      "period": 28,
+      "subject_code": null,
+      "subject_name": "Ms.Sruthi Sri Harshitha K - AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6618223048971009
+    },
+    {
+      "day": "Friday",
+      "period": 20,
+      "subject_code": "CB2353",
+      "subject_name": "]",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8055140608760823
+    },
+    {
+      "day": "Friday",
+      "period": 21,
+      "subject_code": "CB23531",
+      "subject_name": "CB23531",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9987646093963833
+    },
+    {
+      "day": "Friday",
+      "period": 22,
+      "subject_code": null,
+      "subject_name": "Business Analyrics",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9706166175310066
+    },
+    {
+      "day": "Friday",
+      "period": 23,
+      "subject_code": null,
+      "subject_name": "Business Analytics",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9157198068172645
+    },
+    {
+      "day": "Friday",
+      "period": 24,
+      "subject_code": "APIAIM",
+      "subject_name": "Mr Jeevanandham K- &ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6803847262824907
+    },
+    {
+      "day": "Friday",
+      "period": 25,
+      "subject_code": null,
+      "subject_name": "Mr_Jeevanandham K",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7240284711956441
+    },
+    {
+      "day": "Friday",
+      "period": 26,
+      "subject_code": null,
+      "subject_name": "AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7726051785353001
+    },
+    {
+      "day": "Saturday",
+      "period": 5,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6581910775995669
+    },
+    {
+      "day": "Saturday",
+      "period": 6,
+      "subject_code": "AL23531",
+      "subject_name": "NLP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9849232167148565
+    },
+    {
+      "day": "Saturday",
+      "period": 7,
+      "subject_code": null,
+      "subject_name": "Natural Language Processing Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7922177389278059
+    },
+    {
+      "day": "Saturday",
+      "period": 8,
+      "subject_code": null,
+      "subject_name": "Natural",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999935118030164
+    },
+    {
+      "day": "Saturday",
+      "period": 9,
+      "subject_code": null,
+      "subject_name": "Language Processing Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6135258605333745
+    },
+    {
+      "day": "Saturday",
+      "period": 10,
+      "subject_code": null,
+      "subject_name": "Mr Jeevanandham K - AP{AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8042416949477291
+    },
+    {
+      "day": "Saturday",
+      "period": 11,
+      "subject_code": null,
+      "subject_name": "Mr_Jeevanandham K",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9941469429213393
+    },
+    {
+      "day": "Saturday",
+      "period": 12,
+      "subject_code": null,
+      "subject_name": "AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8120726750385212
+    },
+    {
+      "day": "Monday",
+      "period": 50,
+      "subject_code": "MX23511",
+      "subject_name": "MX23511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9706152776413973
+    },
+    {
+      "day": "Monday",
+      "period": 51,
+      "subject_code": "MX23511",
+      "subject_name": "MX23511",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9822987669307905
+    },
+    {
+      "day": "Monday",
+      "period": 52,
+      "subject_code": null,
+      "subject_name": "Dieaster Risk Reduction and Management",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4170483333121759
+    },
+    {
+      "day": "Monday",
+      "period": 53,
+      "subject_code": null,
+      "subject_name": "Disaster Risk Reduction and Management",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.927894619619376
+    },
+    {
+      "day": "Monday",
+      "period": 54,
+      "subject_code": null,
+      "subject_name": "Mr,Sethish B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.399002155169157
+    },
+    {
+      "day": "Monday",
+      "period": 55,
+      "subject_code": null,
+      "subject_name": "Mr_Sathish B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8572521307706044
+    },
+    {
+      "day": "Monday",
+      "period": 56,
+      "subject_code": null,
+      "subject_name": "AP{AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7465515708800087
+    },
+    {
+      "day": "Monday",
+      "period": 57,
+      "subject_code": null,
+      "subject_name": "AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8856192255747106
+    },
+    {
+      "day": "Tuesday",
+      "period": 36,
+      "subject_code": "L23V1A",
+      "subject_name": "AI",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.2612258378833255
+    },
+    {
+      "day": "Tuesday",
+      "period": 37,
+      "subject_code": "L23VII",
+      "subject_name": "AI",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6537185590024965
+    },
+    {
+      "day": "Tuesday",
+      "period": 38,
+      "subject_code": null,
+      "subject_name": "Exptoratory Data Analysis",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6598397439375695
+    },
+    {
+      "day": "Tuesday",
+      "period": 39,
+      "subject_code": null,
+      "subject_name": "Exploratory Data Analysis",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9004884260589658
+    },
+    {
+      "day": "Tuesday",
+      "period": 40,
+      "subject_code": null,
+      "subject_name": "Mr.Sarhish B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6453698680486959
+    },
+    {
+      "day": "Tuesday",
+      "period": 41,
+      "subject_code": null,
+      "subject_name": "Mr Sathish B - AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6370290501992858
+    },
+    {
+      "day": "Tuesday",
+      "period": 42,
+      "subject_code": null,
+      "subject_name": "APfAIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3226204789959024
+    },
+    {
+      "day": "Wednesday",
+      "period": 48,
+      "subject_code": null,
+      "subject_name": "AI-L2Jv11",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4347927531496913
+    },
+    {
+      "day": "Wednesday",
+      "period": 49,
+      "subject_code": "L23VII",
+      "subject_name": "AI",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5294114413080404
+    },
+    {
+      "day": "Wednesday",
+      "period": 50,
+      "subject_code": null,
+      "subject_name": "Problem Solving Techniques",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9911849173947873
+    },
+    {
+      "day": "Wednesday",
+      "period": 51,
+      "subject_code": null,
+      "subject_name": "Problem Solving Techniques",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9906020748384546
+    },
+    {
+      "day": "Wednesday",
+      "period": 52,
+      "subject_code": null,
+      "subject_name": "Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9844402858954655
+    },
+    {
+      "day": "Wednesday",
+      "period": 53,
+      "subject_code": null,
+      "subject_name": "Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999023039115857
+    },
+    {
+      "day": "Wednesday",
+      "period": 54,
+      "subject_code": null,
+      "subject_name": "Mr,Sechish B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.696648030797936
+    },
+    {
+      "day": "Wednesday",
+      "period": 55,
+      "subject_code": null,
+      "subject_name": "Mr.Sathish B - AP/AIM&ML (L)",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8149402252691428
+    },
+    {
+      "day": "Wednesday",
+      "period": 56,
+      "subject_code": null,
+      "subject_name": "AP{AIM&ML ()",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4149812385989156
+    },
+    {
+      "day": "Thursday",
+      "period": 29,
+      "subject_code": "AD23521",
+      "subject_name": "AD23521",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9644791616700616
+    },
+    {
+      "day": "Thursday",
+      "period": 30,
+      "subject_code": "AD23521",
+      "subject_name": "AD23521",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9791055634249847
+    },
+    {
+      "day": "Thursday",
+      "period": 31,
+      "subject_code": null,
+      "subject_name": "Deep Learning Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7449991072601431
+    },
+    {
+      "day": "Thursday",
+      "period": 32,
+      "subject_code": null,
+      "subject_name": "Deep",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5163934826850891
+    },
+    {
+      "day": "Thursday",
+      "period": 33,
+      "subject_code": null,
+      "subject_name": "Learning Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7549573579357614
+    },
+    {
+      "day": "Thursday",
+      "period": 34,
+      "subject_code": null,
+      "subject_name": "Mr_Nithin B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9651099168526354
+    },
+    {
+      "day": "Thursday",
+      "period": 35,
+      "subject_code": null,
+      "subject_name": "Mr.Nithin B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6470789521418224
+    },
+    {
+      "day": "Thursday",
+      "period": 36,
+      "subject_code": null,
+      "subject_name": "AP{AIM&ML (L)",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8162938924932751
+    },
+    {
+      "day": "Thursday",
+      "period": 37,
+      "subject_code": null,
+      "subject_name": "AP/AIM&ML (L)",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7910736520330123
+    },
+    {
+      "day": "Friday",
+      "period": 27,
+      "subject_code": "CS3251",
+      "subject_name": "CS3251",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9823276317666921
+    },
+    {
+      "day": "Friday",
+      "period": 28,
+      "subject_code": "CS3251",
+      "subject_name": "CS3251",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9235763935949186
+    },
+    {
+      "day": "Friday",
+      "period": 29,
+      "subject_code": null,
+      "subject_name": "Computer Nctworks Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8776033159830745
+    },
+    {
+      "day": "Friday",
+      "period": 30,
+      "subject_code": null,
+      "subject_name": "Computer Networks Laboratory",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9929222808079488
+    },
+    {
+      "day": "Friday",
+      "period": 31,
+      "subject_code": null,
+      "subject_name": "Mr,Sathish M.",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5284460908720461
+    },
+    {
+      "day": "Friday",
+      "period": 32,
+      "subject_code": null,
+      "subject_name": "Mr Sathish M.",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7458792261363248
+    },
+    {
+      "day": "Friday",
+      "period": 33,
+      "subject_code": null,
+      "subject_name": "4 - AP{AIDS",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.2456166991094513
+    },
+    {
+      "day": "Friday",
+      "period": 34,
+      "subject_code": null,
+      "subject_name": "A - AP/AIDS",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8794067575053514
+    },
+    {
+      "day": "Saturday",
+      "period": 13,
+      "subject_code": "GE34S1",
+      "subject_name": "GE34S1",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9899462274937191
+    },
+    {
+      "day": "Saturday",
+      "period": 14,
+      "subject_code": "GE3451",
+      "subject_name": "GE3451",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.992053990428296
+    },
+    {
+      "day": "Saturday",
+      "period": 15,
+      "subject_code": null,
+      "subject_name": "Essence of Indian Traditional Knowledge",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.840607644230595
+    },
+    {
+      "day": "Saturday",
+      "period": 16,
+      "subject_code": null,
+      "subject_name": "Essence of Indian Traditional Knowledge",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8130332003739047
+    },
+    {
+      "day": "Saturday",
+      "period": 17,
+      "subject_code": "APIAIRDS",
+      "subject_name": "Mr_Jad",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4915636589827216
+    },
+    {
+      "day": "Saturday",
+      "period": 18,
+      "subject_code": null,
+      "subject_name": "Mr_Jad AP/AI&DS",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6042704349714668
+    },
+    {
+      "day": "Monday",
+      "period": 58,
+      "subject_code": "GE3451",
+      "subject_name": "GE3451",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.996381742869761
+    },
+    {
+      "day": "Monday",
+      "period": 59,
+      "subject_code": "GE3451",
+      "subject_name": "GE3451",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9995484934354273
+    },
+    {
+      "day": "Monday",
+      "period": 60,
+      "subject_code": null,
+      "subject_name": "Veritablc Practices",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9170916438273681
+    },
+    {
+      "day": "Monday",
+      "period": 61,
+      "subject_code": null,
+      "subject_name": "Veritable Practices",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9991937605270602
+    },
+    {
+      "day": "Monday",
+      "period": 62,
+      "subject_code": null,
+      "subject_name": "Mrs Smitha M;",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.4229578739830037
+    },
+    {
+      "day": "Monday",
+      "period": 63,
+      "subject_code": null,
+      "subject_name": "Mrs Smitha",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6455540895867455
+    },
+    {
+      "day": "Monday",
+      "period": 64,
+      "subject_code": null,
+      "subject_name": "4 + AP{AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6191207690018328
+    },
+    {
+      "day": "Monday",
+      "period": 65,
+      "subject_code": null,
+      "subject_name": "A - AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6208739760888544
+    },
+    {
+      "day": "Tuesday",
+      "period": 43,
+      "subject_code": null,
+      "subject_name": "NPTEL",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9998749290895961
+    },
+    {
+      "day": "Tuesday",
+      "period": 44,
+      "subject_code": null,
+      "subject_name": "NPTEL",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999535651076835
+    },
+    {
+      "day": "Tuesday",
+      "period": 45,
+      "subject_code": null,
+      "subject_name": "NPTEL",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999030248896986
+    },
+    {
+      "day": "Tuesday",
+      "period": 46,
+      "subject_code": null,
+      "subject_name": "NPTEL",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9536523510537777
+    },
+    {
+      "day": "Wednesday",
+      "period": 57,
+      "subject_code": null,
+      "subject_name": "Credit",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9993736604318658
+    },
+    {
+      "day": "Wednesday",
+      "period": 58,
+      "subject_code": null,
+      "subject_name": "Credit",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9996849187585574
+    },
+    {
+      "day": "Wednesday",
+      "period": 59,
+      "subject_code": null,
+      "subject_name": "Credit",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9438811486321499
+    },
+    {
+      "day": "Wednesday",
+      "period": 60,
+      "subject_code": null,
+      "subject_name": "Credit",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9990818998506897
+    },
+    {
+      "day": "Thursday",
+      "period": 38,
+      "subject_code": null,
+      "subject_name": "Mr Nithin B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7538317300929335
+    },
+    {
+      "day": "Thursday",
+      "period": 39,
+      "subject_code": null,
+      "subject_name": "Mr.Nithin B - AP/AIM& ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7577693825919529
+    },
+    {
+      "day": "Thursday",
+      "period": 40,
+      "subject_code": "APIAMM",
+      "subject_name": "&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3302826049479572
+    },
+    {
+      "day": "Thursday",
+      "period": 41,
+      "subject_code": null,
+      "subject_name": "Periad",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6371403360883451
+    },
+    {
+      "day": "Thursday",
+      "period": 42,
+      "subject_code": null,
+      "subject_name": "Period",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9997469731310772
+    },
+    {
+      "day": "Friday",
+      "period": 35,
+      "subject_code": null,
+      "subject_name": "Ms Sruthi Sri Harshitha K",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8050477158911016
+    },
+    {
+      "day": "Friday",
+      "period": 36,
+      "subject_code": null,
+      "subject_name": "Ms.Sruthi Sri Harshitha K - AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6699173468043952
+    },
+    {
+      "day": "Friday",
+      "period": 37,
+      "subject_code": "AIMEML",
+      "subject_name": "AP{",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.42854241323979597
+    },
+    {
+      "day": "Saturday",
+      "period": 19,
+      "subject_code": "AIMRML",
+      "subject_name": "Mr,Jeevanandham K - AP",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3996281906946188
+    },
+    {
+      "day": "Saturday",
+      "period": 20,
+      "subject_code": null,
+      "subject_name": "Mr_Jeevanandham K - AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6749521687968988
+    },
+    {
+      "day": "Monday",
+      "period": 66,
+      "subject_code": null,
+      "subject_name": "Mr Sathish B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8192837860129646
+    },
+    {
+      "day": "Monday",
+      "period": 67,
+      "subject_code": null,
+      "subject_name": "Mr Sathish B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8804599193344698
+    },
+    {
+      "day": "Monday",
+      "period": 68,
+      "subject_code": null,
+      "subject_name": "AP AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6718084255019108
+    },
+    {
+      "day": "Monday",
+      "period": 69,
+      "subject_code": null,
+      "subject_name": "AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7701921539493843
+    },
+    {
+      "day": "Tuesday",
+      "period": 47,
+      "subject_code": null,
+      "subject_name": "Mr.Sathish B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.6716765386303706
+    },
+    {
+      "day": "Tuesday",
+      "period": 48,
+      "subject_code": null,
+      "subject_name": "Mr Sathish B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7488334069924046
+    },
+    {
+      "day": "Tuesday",
+      "period": 49,
+      "subject_code": "APJAIM",
+      "subject_name": "&ML (L)",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8439963601874099
+    },
+    {
+      "day": "Tuesday",
+      "period": 50,
+      "subject_code": null,
+      "subject_name": "AP/AIM&ML (L)",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9564858248542227
+    },
+    {
+      "day": "Wednesday",
+      "period": 61,
+      "subject_code": null,
+      "subject_name": "Mr_Nithin B",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8577430376903667
+    },
+    {
+      "day": "Wednesday",
+      "period": 62,
+      "subject_code": null,
+      "subject_name": "Mr.Nithin B - AP/AIM&ML (L)",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7689285796632787
+    },
+    {
+      "day": "Wednesday",
+      "period": 63,
+      "subject_code": "APIAMMEML",
+      "subject_name": "(L}",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3442241712970134
+    },
+    {
+      "day": "Thursday",
+      "period": 43,
+      "subject_code": null,
+      "subject_name": "Mr Sathish M, 4 - AP{AIDS",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3104391866928891
+    },
+    {
+      "day": "Thursday",
+      "period": 44,
+      "subject_code": null,
+      "subject_name": "Mr.Sathish M.",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7238559288267857
+    },
+    {
+      "day": "Thursday",
+      "period": 45,
+      "subject_code": null,
+      "subject_name": "AP/AIDS",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9789122565133764
+    },
+    {
+      "day": "Friday",
+      "period": 38,
+      "subject_code": null,
+      "subject_name": "MrJJad AP AI&DS",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5227453885975677
+    },
+    {
+      "day": "Friday",
+      "period": 39,
+      "subject_code": null,
+      "subject_name": "Mr_Jad AP/AI&DS",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8402255232950797
+    },
+    {
+      "day": "Saturday",
+      "period": 21,
+      "subject_code": null,
+      "subject_name": "Mrs Smitha M",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8759288040887574
+    },
+    {
+      "day": "Saturday",
+      "period": 22,
+      "subject_code": null,
+      "subject_name": "Mrs_ Smitha",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.643183467104354
+    },
+    {
+      "day": "Saturday",
+      "period": 23,
+      "subject_code": "APAAIMRML",
+      "subject_name": "APAAIMRML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3883672484034722
+    },
+    {
+      "day": "Saturday",
+      "period": 24,
+      "subject_code": null,
+      "subject_name": "AP/AIM&ML",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7568914697371948
+    },
+    {
+      "day": "Monday",
+      "period": 70,
+      "subject_code": null,
+      "subject_name": "Total",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9684134902426953
+    },
+    {
+      "day": "Monday",
+      "period": 71,
+      "subject_code": null,
+      "subject_name": "Total",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9993700418057202
+    },
+    {
+      "day": "Tuesday",
+      "period": 51,
+      "subject_code": null,
+      "subject_name": "IMv",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.13258587195179194
+    },
+    {
+      "day": "Tuesday",
+      "period": 52,
+      "subject_code": null,
+      "subject_name": "{buMcr",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.1861701667473857
+    },
+    {
+      "day": "Tuesday",
+      "period": 53,
+      "subject_code": null,
+      "subject_name": "xY",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.009980896601293362
+    },
+    {
+      "day": "Tuesday",
+      "period": 54,
+      "subject_code": null,
+      "subject_name": "\"ds L",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.06892350853876583
+    },
+    {
+      "day": "Tuesday",
+      "period": 55,
+      "subject_code": null,
+      "subject_name": "L",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3440648831029627
+    },
+    {
+      "day": "Tuesday",
+      "period": 56,
+      "subject_code": null,
+      "subject_name": "Vwl",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.07399867946034916
+    },
+    {
+      "day": "Wednesday",
+      "period": 64,
+      "subject_code": null,
+      "subject_name": "Time Table",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9878874610670957
+    },
+    {
+      "day": "Wednesday",
+      "period": 65,
+      "subject_code": null,
+      "subject_name": "Time Table",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8209210902749675
+    },
+    {
+      "day": "Wednesday",
+      "period": 66,
+      "subject_code": null,
+      "subject_name": "MrV Jedun Helcy",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8591607260167201
+    },
+    {
+      "day": "Wednesday",
+      "period": 67,
+      "subject_code": null,
+      "subject_name": "Mr.VJedun Helcy",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9652906610618648
+    },
+    {
+      "day": "Wednesday",
+      "period": 68,
+      "subject_code": null,
+      "subject_name": "Incharge",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9993645526199735
+    },
+    {
+      "day": "Wednesday",
+      "period": 69,
+      "subject_code": null,
+      "subject_name": "Incharge",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.999980738813395
+    },
+    {
+      "day": "Wednesday",
+      "period": 70,
+      "subject_code": null,
+      "subject_name": "Mr Sathish",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5160947343924032
+    },
+    {
+      "day": "Wednesday",
+      "period": 71,
+      "subject_code": null,
+      "subject_name": "Class In-charge",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7661647616411381
+    },
+    {
+      "day": "Wednesday",
+      "period": 72,
+      "subject_code": null,
+      "subject_name": "Mr.Sathish M: A",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7042032239855849
+    },
+    {
+      "day": "Wednesday",
+      "period": 73,
+      "subject_code": null,
+      "subject_name": "Class In-charge",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.79372829454346
+    },
+    {
+      "day": "Wednesday",
+      "period": 74,
+      "subject_code": null,
+      "subject_name": "Dr_Kiranmayee J",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.7517611686093997
+    },
+    {
+      "day": "Wednesday",
+      "period": 75,
+      "subject_code": null,
+      "subject_name": "Dr Kiranmayee",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9575177287534121
+    },
+    {
+      "day": "Wednesday",
+      "period": 76,
+      "subject_code": null,
+      "subject_name": "HeD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9860853696530854
+    },
+    {
+      "day": "Wednesday",
+      "period": 77,
+      "subject_code": null,
+      "subject_name": "HoD",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9948718552560152
+    },
+    {
+      "day": "Wednesday",
+      "period": 78,
+      "subject_code": null,
+      "subject_name": "CSE",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999422556159375
+    },
+    {
+      "day": "Wednesday",
+      "period": 79,
+      "subject_code": null,
+      "subject_name": "CSE",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9999262194121389
+    },
+    {
+      "day": "Wednesday",
+      "period": 80,
+      "subject_code": null,
+      "subject_name": "Dean Academics",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8031884235073486
+    },
+    {
+      "day": "Wednesday",
+      "period": 81,
+      "subject_code": null,
+      "subject_name": "Dean Academics",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9996992399141229
+    },
+    {
+      "day": "Wednesday",
+      "period": 82,
+      "subject_code": null,
+      "subject_name": "Dr.P_Poongudi",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.3952521132647574
+    },
+    {
+      "day": "Wednesday",
+      "period": 83,
+      "subject_code": null,
+      "subject_name": "Dr.P Poongodi",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.8316179532306933
+    },
+    {
+      "day": "Wednesday",
+      "period": 84,
+      "subject_code": null,
+      "subject_name": "Dr-RMabeswaran",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.5621109773525755
+    },
+    {
+      "day": "Wednesday",
+      "period": 85,
+      "subject_code": null,
+      "subject_name": "DrRMaheswaran",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9171411171284733
+    },
+    {
+      "day": "Wednesday",
+      "period": 86,
+      "subject_code": null,
+      "subject_name": "Principal",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9685806559891127
+    },
+    {
+      "day": "Wednesday",
+      "period": 87,
+      "subject_code": null,
+      "subject_name": "Principal",
+      "faculty": null,
+      "room": null,
+      "confidence": 0.9987203954159453
+    }
+  ]
+}

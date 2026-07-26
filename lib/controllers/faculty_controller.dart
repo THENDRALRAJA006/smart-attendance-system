@@ -5,14 +5,19 @@
 // ============================================================
 
 import 'dart:async';
+import 'dart:developer' as dev;
+import 'dart:io';
 import 'dart:math';
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/network/api_client.dart';
+import '../core/theme/app_theme.dart';
 import '../models/models.dart';
 
 class FacultyController extends GetxController {
@@ -41,6 +46,7 @@ class FacultyController extends GetxController {
   // ─── Live Attendance State ────────────────────────────────
   final RxList<Map<String, dynamic>> liveStudents = <Map<String, dynamic>>[].obs;
   final RxInt liveAttendanceCount = 0.obs;
+  final RxInt liveStudentTotal    = 0.obs;   // Total enrolled students for session
   Timer? _livePollingTimer;
 
   @override
@@ -88,6 +94,9 @@ class FacultyController extends GetxController {
   Future<SessionModel?> createSession({
     required int classroomId,
     required int subjectId,
+    String? department,
+    int? year,
+    String? section,
   }) async {
     isCreatingSession.value = true;
     errorMessage.value = '';
@@ -98,6 +107,9 @@ class FacultyController extends GetxController {
         'classroom_id':    classroomId,
         'subject_id':      subjectId,
         'attendance_code': internalCode, // internal only
+        if (department != null) 'department': department,
+        if (year != null)       'year': year,
+        if (section != null)    'section': section,
       });
 
       final data = response.data as Map<String, dynamic>;
@@ -173,6 +185,7 @@ class FacultyController extends GetxController {
           .cast<Map<String, dynamic>>();
       liveStudents.value = students;
       liveAttendanceCount.value = data['attendance_count'] as int? ?? 0;
+      liveStudentTotal.value    = data['total_enrolled']   as int? ?? 0;
     } catch (_) {
       // Silently fail — live polling should not disrupt the UI
     }
@@ -271,44 +284,335 @@ class FacultyController extends GetxController {
   }
 
   // ─── Export & Open Report ────────────────────────────────
+  /// Android 11-15 Scoped Storage safe export.
+  ///
+  /// Strategy:
+  ///  1. Download file to app temp directory (no storage permission needed)
+  ///  2. Open with device default app (open_file) OR
+  ///     Share via native share sheet (share_plus) → user can save to Downloads
+  ///
+  /// Why NOT /storage/emulated/0/Downloads directly:
+  ///  - Android 11+ (API 30+) Scoped Storage blocks direct writes
+  ///  - WRITE_EXTERNAL_STORAGE is deprecated/ignored on API 30+
+  ///  - MediaStore API requires complex async cursors — overkill here
+  ///  - share_plus wraps FileProvider intent, works on all Android 5+
+  final RxDouble exportProgress = 0.0.obs;
+
   Future<void> exportAndOpenReport(
     String format, {
     String period = 'monthly',
   }) async {
     isExporting.value = true;
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final filename = 'attendance_report_$timestamp.$format';
-      final savePath = '${dir.path}/$filename';
+    exportProgress.value = 0.0;
+    errorMessage.value = '';
 
+    // Normalize format: UI 'excel' → backend 'xlsx'
+    final backendFmt = format == 'excel' ? 'xlsx' : format.toLowerCase().trim();
+    final ext = backendFmt; // csv | xlsx | pdf
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final filename = 'SmartAttend_Report_$timestamp.$ext';
+
+    dev.log('[EXPORT] Starting export: format=$backendFmt period=$period', name: 'Export');
+
+    try {
+      // ── Step 1: Save to temp dir — always accessible, no permissions ──
+      // getTemporaryDirectory() → /data/user/0/<pkg>/cache on Android
+      // This is app-private, no storage permission needed on any Android version.
+      final tempDir = await getTemporaryDirectory();
+      final savePath = '${tempDir.path}/$filename';
+      dev.log('[EXPORT] Temp save path: $savePath', name: 'Export');
+
+      // ── Step 2: Download bytes from backend ──────────────────────────
       await _api.download(
-        '/faculty/export/$format?period=$period',
+        '/faculty/export/$backendFmt',
         savePath,
+        queryParameters: {'period': period},
         onProgress: (received, total) {
           if (total > 0) {
-            // Progress tracking can be wired up to a progress bar
+            exportProgress.value = received / total;
           }
         },
       );
 
-      Get.snackbar(
-        'Export Ready',
-        'Report saved: $filename',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 3),
+      exportProgress.value = 1.0;
+      final file = File(savePath);
+
+      if (!file.existsSync() || file.lengthSync() == 0) {
+        throw Exception('Downloaded file is empty or missing. The server may have returned no data.');
+      }
+
+      dev.log('[EXPORT] ✅ Download complete: ${file.lengthSync()} bytes → $savePath', name: 'Export');
+
+      // ── Step 3: Determine MIME type ──────────────────────────────────
+      final mimeType = switch (ext) {
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'csv'  => 'text/csv',
+        'pdf'  => 'application/pdf',
+        _      => 'application/octet-stream',
+      };
+
+      // ── Step 4: Show success dialog with Open & Share options ────────
+      _showExportSuccessDialog(
+        filename: filename,
+        savePath: savePath,
+        mimeType: mimeType,
+        ext: ext,
       );
 
-      // Open the file with the device's default app
-      await OpenFile.open(savePath);
+    } on DioException catch (e) {
+      dev.log('[EXPORT] ❌ Dio error: ${e.response?.statusCode} ${e.message}', name: 'Export');
+      final sc = e.response?.statusCode;
+      final errMsg = switch (sc) {
+        401 => 'Session expired. Please log in again.',
+        403 => 'Access denied. You do not have permission to export reports.',
+        404 => 'No report data found for this period. Try a different date range.',
+        500 => 'Server error generating the report. Please try again later.',
+        _   => ApiException.fromDioError(e).message,
+      };
+      errorMessage.value = errMsg;
+      _showExportErrorDialog(errMsg);
     } catch (e) {
-      errorMessage.value = e.toString();
-      Get.snackbar('Export Failed', errorMessage.value,
-          snackPosition: SnackPosition.BOTTOM);
+      dev.log('[EXPORT] ❌ Unexpected error: $e', name: 'Export');
+      final errMsg = e.toString().contains('empty')
+          ? e.toString()
+          : 'Export failed: Unable to save file.\n\nDetails: $e';
+      errorMessage.value = errMsg;
+      _showExportErrorDialog(errMsg);
     } finally {
       isExporting.value = false;
+      exportProgress.value = 0.0;
     }
   }
+
+  // ─── Export Success Dialog ───────────────────────────────
+  void _showExportSuccessDialog({
+    required String filename,
+    required String savePath,
+    required String mimeType,
+    required String ext,
+  }) {
+    final fmtLabel = switch (ext) {
+      'xlsx' => 'Excel',
+      'csv'  => 'CSV',
+      'pdf'  => 'PDF',
+      _      => ext.toUpperCase(),
+    };
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Icon ──────────────────────────────────
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppTheme.success.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded,
+                    color: AppTheme.success, size: 36),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '$fmtLabel Exported Successfully',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCardLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(_extIcon(ext), color: AppTheme.primary, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        filename,
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 12,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tap "Open" to view the file, or "Share" to save it to Downloads, Drive, or WhatsApp.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.textHint,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // ── Action Buttons ────────────────────────
+              Row(
+                children: [
+                  // Share button → native OS share sheet
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        Get.back();
+                        dev.log('[EXPORT] Sharing via share_plus...', name: 'Export');
+                        try {
+                          await SharePlus.instance.share(
+                            ShareParams(
+                              files: [XFile(savePath, mimeType: mimeType, name: filename)],
+                              subject: 'SmartAttend Attendance Report',
+                            ),
+                          );
+                        } catch (e) {
+                          dev.log('[EXPORT] share_plus error: $e', name: 'Export');
+                          _showExportErrorDialog('Could not open share sheet: $e');
+                        }
+                      },
+                      icon: const Icon(Icons.share_rounded, size: 16),
+                      label: const Text('Share / Save'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primary,
+                        side: BorderSide(
+                            color: AppTheme.primary.withValues(alpha: 0.5)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Open button → open with default app
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        Get.back();
+                        dev.log('[EXPORT] Opening file: $savePath', name: 'Export');
+                        final result = await OpenFile.open(savePath);
+                        if (result.type != ResultType.done) {
+                          dev.log('[EXPORT] OpenFile error: ${result.message}', name: 'Export');
+                          // Fallback to share if open fails (e.g., no app installed)
+                          try {
+                            await SharePlus.instance.share(
+                              ShareParams(
+                                files: [XFile(savePath, mimeType: mimeType, name: filename)],
+                                subject: 'SmartAttend Attendance Report',
+                              ),
+                            );
+                          } catch (_) {
+                            _showExportErrorDialog(
+                              'No app found to open .$ext files.\n'
+                              'Please install a compatible viewer\n'
+                              '(e.g., Google Sheets for Excel, Adobe for PDF).',
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                      label: const Text('Open'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Export Error Dialog ─────────────────────────────────
+  void _showExportErrorDialog(String message) {
+    Get.dialog(
+      Dialog(
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppTheme.error.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline_rounded,
+                    color: AppTheme.error, size: 36),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Export Failed',
+                style: TextStyle(
+                  color: AppTheme.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Get.back(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('OK'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Icon helper for file format ────────────────────────
+  IconData _extIcon(String ext) => switch (ext) {
+    'xlsx' => Icons.table_chart_rounded,
+    'csv'  => Icons.grid_on_rounded,
+    'pdf'  => Icons.picture_as_pdf_rounded,
+    _      => Icons.insert_drive_file_rounded,
+  };
 
   // ─── Create Subject ──────────────────────────────────────
   Future<void> createSubject({

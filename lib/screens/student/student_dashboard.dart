@@ -1,22 +1,23 @@
 // ============================================================
-// SmartAttend — Student Dashboard (v3)
-// StatefulWidget + Timer.periodic session polling (30s)
-// Active session detection, "Start Attendance" button
-// No standalone QR button — removed in v2, confirmed in v3
+// SmartAttend — Student Dashboard (v12 Premium Light)
+// Modern university ERP style — white cards, Poppins,
+// floating nav shell, all existing logic preserved.
 // ============================================================
 
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+
 import '../../controllers/attendance_controller.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/student_controller.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
-import '../../widgets/attendance_badge.dart';
-import '../../widgets/glassmorphism_card.dart';
-import 'package:intl/intl.dart';
+import '../../widgets/sa_button.dart';
+import '../../widgets/sa_widgets.dart';
+import '../../models/models.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -28,20 +29,16 @@ class StudentDashboard extends StatefulWidget {
 class _StudentDashboardState extends State<StudentDashboard>
     with WidgetsBindingObserver {
   late final AttendanceController _attendance;
-  late final StudentController _student;
-  late final AuthController _auth;
+  late final StudentController    _student;
+  late final AuthController       _auth;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
     _attendance = Get.find<AttendanceController>();
     _student    = Get.find<StudentController>();
     _auth       = Get.find<AuthController>();
-
-    // Trigger an immediate session check (StudentController polls every 30s
-    // automatically, but we want a fresh check on first open)
     _attendance.checkActiveSession();
     _student.fetchDashboard();
   }
@@ -49,10 +46,7 @@ class _StudentDashboardState extends State<StudentDashboard>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // Refresh session check when app comes to foreground
-    if (state == AppLifecycleState.resumed) {
-      _attendance.checkActiveSession();
-    }
+    if (state == AppLifecycleState.resumed) _attendance.checkActiveSession();
   }
 
   @override
@@ -61,934 +55,124 @@ class _StudentDashboardState extends State<StudentDashboard>
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
-        child: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              await Future.wait([
-                _attendance.checkActiveSession(),
-                _student.refresh(),
-              ]);
-            },
-            color: AppTheme.primary,
-            backgroundColor: AppTheme.bgCard,
-            child: CustomScrollView(
-              slivers: [
-                // ─── Top App Bar ─────────────────────────────
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Obx(() {
-                            final name = _auth.currentStudent.value?.name ?? 'Student';
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Good ${_greeting()}, 👋',
-                                  style: const TextStyle(
-                                    color: AppTheme.textSecondary,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                Text(
-                                  name.split(' ').first,
-                                  style: const TextStyle(
-                                    color: AppTheme.textPrimary,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }),
-                        ),
-                        // ─── Avatar ───────────────────────────
-                        GestureDetector(
-                          onTap: () => _showProfileMenu(context, _auth),
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              gradient: AppTheme.primaryGradient,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.primary.withValues(alpha: 0.4),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Obx(() {
-                                final name = _auth.currentStudent.value?.name ?? 'S';
-                                return Text(
-                                  name[0].toUpperCase(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 18,
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ─── Student Info Strip ───────────────────────
-                SliverToBoxAdapter(
-                  child: Obx(() {
-                    final s = _auth.currentStudent.value;
-                    if (s == null) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.school_outlined,
-                                color: AppTheme.primary, size: 16),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '${s.regNo} • ${s.department} • Year ${s.year} - ${s.section}',
-                                style: const TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-
-                // ─── Face Registration Warning ────────────────
-                SliverToBoxAdapter(
-                  child: Obx(() {
-                    final s = _auth.currentStudent.value;
-                    if (s == null || s.hasFaceRegistered) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                      child: GestureDetector(
-                        onTap: () => Get.toNamed(AppConstants.routeFaceRegister),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppTheme.warning.withValues(alpha: 0.15),
-                                AppTheme.error.withValues(alpha: 0.10),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                                color: AppTheme.warning.withValues(alpha: 0.4)),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.face_retouching_off_rounded,
-                                  color: AppTheme.warning, size: 22),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '⚠️ Face Not Registered',
-                                      style: TextStyle(
-                                        color: AppTheme.warning,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'Tap here to complete face registration — required for attendance.',
-                                      style: TextStyle(
-                                        color: AppTheme.textSecondary,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.arrow_forward_ios_rounded,
-                                  color: AppTheme.warning, size: 14),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-                // ─── Active Session Card ──────────────────────
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Obx(() => _ActiveSessionCard(attendance: _attendance)),
-                  ),
-                ),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-                // ─── Attendance Overview Card ─────────────────
-                SliverToBoxAdapter(
-                  child: Obx(() {
-                    final stats = _student.dashboardStats.value;
-                    if (stats == null) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
-                        child: _LoadingCard(),
-                      );
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: GlassmorphismCard(
-                        child: Row(
-                          children: [
-                            _AttendanceRing(percentage: stats.attendancePercentage),
-                            const SizedBox(width: 24),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Overall Attendance',
-                                    style: TextStyle(
-                                      color: AppTheme.textSecondary,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _InfoRow(
-                                    label: 'Total Classes',
-                                    value: '${stats.totalClasses}',
-                                    color: AppTheme.primary,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _InfoRow(
-                                    label: 'Attended',
-                                    value: '${stats.attendedClasses}',
-                                    color: AppTheme.success,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _InfoRow(
-                                    label: 'Missed',
-                                    value: '${stats.totalClasses - stats.attendedClasses}',
-                                    color: AppTheme.error,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  if (stats.attendancePercentage < 75.0)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: AppTheme.error.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                            color: AppTheme.error.withValues(alpha: 0.3)),
-                                      ),
-                                      child: const Text(
-                                        '⚠ Below 75% Threshold',
-                                        style: TextStyle(
-                                          color: AppTheme.error,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-                // ─── Section Title ────────────────────────────
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(24, 0, 24, 16),
-                    child: Text(
-                      'Subject-wise Attendance',
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ─── Subject Cards ────────────────────────────
-                Obx(() {
-                  final stats = _student.dashboardStats.value;
-                  if (stats == null) {
-                    return const SliverToBoxAdapter(child: SizedBox(height: 100));
-                  }
-                  return SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final subject = stats.subjectWise[index];
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                          child: _SubjectCard(subject: subject),
-                        );
-                      },
-                      childCount: stats.subjectWise.length,
-                    ),
-                  );
-                }),
-
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-                // ─── Recent Activity ──────────────────────────
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Recent Activity',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () =>
-                              Get.toNamed(AppConstants.routeAttendanceHistory),
-                          child: const Text(
-                            'See All',
-                            style: TextStyle(
-                              color: AppTheme.primary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                Obx(() {
-                  final stats = _student.dashboardStats.value;
-                  if (stats == null || stats.recentHistory.isEmpty) {
-                    return const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text(
-                          'No attendance records yet',
-                          style: TextStyle(color: AppTheme.textSecondary),
-                        ),
-                      ),
-                    );
-                  }
-                  return SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final record = stats.recentHistory[index];
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
-                          child: GlassmorphismCard(
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(Icons.book_outlined,
-                                      color: AppTheme.primary, size: 20),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        record.subjectName ?? 'Unknown Subject',
-                                        style: const TextStyle(
-                                          color: AppTheme.textPrimary,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        '${DateFormat('EEE, d MMM').format(record.date)} • ${record.time}',
-                                        style: const TextStyle(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                AttendanceBadge(status: record.status),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                      childCount: stats.recentHistory.take(5).length,
-                    ),
-                  );
-                }),
-
-                // ─── View All History Button ──────────────────
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
-                    child: TextButton(
-                      onPressed: () =>
-                          Get.toNamed(AppConstants.routeAttendanceHistory),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: AppTheme.primary.withValues(alpha: 0.08),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                              color: AppTheme.primary.withValues(alpha: 0.2)),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'View Full History',
-                            style: TextStyle(
-                              color: AppTheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(width: 6),
-                          Icon(Icons.arrow_forward_rounded,
-                              color: AppTheme.primary, size: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   String _greeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Morning';
-    if (hour < 17) return 'Afternoon';
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Morning';
+    if (h < 17) return 'Afternoon';
     return 'Evening';
   }
 
-  void _showProfileMenu(BuildContext context, AuthController auth) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.bgCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.textHint,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Obx(() {
-              final s = auth.currentStudent.value;
-              return ListTile(
-                leading: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      (s?.name ?? 'S')[0].toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                title: Text(s?.name ?? '',
-                    style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.w700)),
-                subtitle: Text(s?.email ?? '',
-                    style: const TextStyle(color: AppTheme.textSecondary)),
-              );
-            }),
-            const Divider(color: AppTheme.bgCardLight),
-            ListTile(
-              leading: const Icon(Icons.person_rounded, color: AppTheme.primary),
-              title: const Text('My Profile',
-                  style: TextStyle(color: AppTheme.textPrimary)),
-              onTap: () {
-                Get.back();
-                Get.toNamed(AppConstants.routeProfile);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.bar_chart_rounded, color: AppTheme.accent),
-              title: const Text('Attendance Reports',
-                  style: TextStyle(color: AppTheme.textPrimary)),
-              onTap: () {
-                Get.back();
-                Get.toNamed(AppConstants.routeReports);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.history_rounded, color: AppTheme.warning),
-              title: const Text('Attendance History',
-                  style: TextStyle(color: AppTheme.textPrimary)),
-              onTap: () {
-                Get.back();
-                Get.toNamed(AppConstants.routeAttendanceHistory);
-              },
-            ),
-            const Divider(color: AppTheme.bgCardLight),
-            ListTile(
-              leading: const Icon(Icons.logout_rounded, color: AppTheme.error),
-              title: const Text('Logout',
-                  style: TextStyle(color: AppTheme.error)),
-              onTap: () {
-                Get.back();
-                auth.logout();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Active Session Card ─────────────────────────────────────
-class _ActiveSessionCard extends StatelessWidget {
-  final AttendanceController attendance;
-  const _ActiveSessionCard({required this.attendance});
-
   @override
   Widget build(BuildContext context) {
-    // Checking indicator
-    if (attendance.isCheckingSession.value && !attendance.hasActiveSession) {
-      return _buildCheckingCard();
-    }
+    return Scaffold(
+      backgroundColor: AppTheme.bgPage,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await Future.wait([
+            _attendance.checkActiveSession(),
+            _student.refresh(),
+          ]);
+        },
+        color: AppTheme.primary,
+        backgroundColor: AppTheme.bgCard,
+        child: CustomScrollView(
+          slivers: [
+            // ── Profile Hero ───────────────────────────────
+            SliverToBoxAdapter(child: _ProfileHero(
+              auth: _auth,
+              greeting: _greeting(),
+              onMarkAttendance: () async {
+                await _attendance.checkActiveSession();
+                _attendance.reset();
+                Get.toNamed(AppConstants.routeClassroomDetection);
+              },
+            )),
 
-    // Already marked
-    if (attendance.alreadyMarked && attendance.hasActiveSession) {
-      return _buildAlreadyMarkedCard();
-    }
+            // ── Face registration warning ──────────────────
+            SliverToBoxAdapter(child: Obx(() {
+              final s = _auth.currentStudent.value;
+              if (s == null || s.hasFaceRegistered) return const SizedBox.shrink();
+              return _FaceWarningBanner();
+            })),
 
-    // Active session available
-    if (attendance.hasActiveSession) {
-      return _buildActiveSessionCard(context);
-    }
-
-    // No session
-    return _buildNoSessionCard();
-  }
-
-  Widget _buildCheckingCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.textHint.withValues(alpha: 0.15)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: AppTheme.primary,
+            // ── Mark Attendance CTA ────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                child: SAButton(
+                  label: 'Mark Attendance',
+                  icon: Icons.bluetooth_searching_rounded,
+                  height: 56,
+                  onPressed: () async {
+                    await _attendance.checkActiveSession();
+                    _attendance.reset();
+                    Get.toNamed(AppConstants.routeClassroomDetection);
+                  },
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Checking Session…',
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  'Looking for an active attendance session…',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildNoSessionCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.textHint.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.textHint.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+            // ── Active Session Card ────────────────────────
+            SliverToBoxAdapter(
+              child: Obx(() {
+                final checking = _attendance.isCheckingSession.value;
+                final session  = _attendance.activeSession.value;
+                final marked   = session != null && _attendance.alreadyMarked;
+                if (checking && session == null) {
+                  return _SessionCheckingCard();
+                }
+                if (session != null && marked) {
+                  return _AlreadyMarkedCard(session: session);
+                }
+                if (session != null) {
+                  return _ActiveSessionCard(session: session, attendance: _attendance);
+                }
+                return const SizedBox.shrink();
+              }),
             ),
-            child: const Icon(Icons.wifi_off_rounded,
-                color: AppTheme.textHint, size: 24),
-          ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'No Attendance Session is Active',
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  'Wait for your faculty to start an attendance session.',
-                  style: TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Obx(() => attendance.isCheckingSession.value
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppTheme.textHint,
-                  ),
-                )
-              : const SizedBox.shrink()),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildActiveSessionCard(BuildContext context) {
-    final session = attendance.activeSession.value!;
-    return GestureDetector(
-      onTap: () => Get.toNamed(AppConstants.routeClassroomDetection),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1A2940), Color(0xFF1A3520)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: AppTheme.success.withValues(alpha: 0.4), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.success.withValues(alpha: 0.15),
-              blurRadius: 20,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row
-            Row(
-              children: [
-                _PulsingDot(),
-                const SizedBox(width: 10),
-                const Text(
-                  'Attendance Session Active',
-                  style: TextStyle(
-                    color: AppTheme.success,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.success.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: AppTheme.success.withValues(alpha: 0.3)),
-                  ),
-                  child: const Text(
-                    'LIVE',
-                    style: TextStyle(
-                      color: AppTheme.success,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            // Session info
-            Text(
-              session.subjectName,
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.location_on_rounded,
-                    color: AppTheme.textSecondary, size: 14),
-                const SizedBox(width: 4),
-                Text(
-                  session.classroomName,
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            // Start Attendance Button
-            Container(
-              width: double.infinity,
-              height: 52,
-              decoration: BoxDecoration(
-                gradient: AppTheme.successGradient,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.success.withValues(alpha: 0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.play_circle_rounded,
-                        color: Colors.white, size: 22),
-                    SizedBox(width: 10),
-                    Text(
-                      'Start Attendance',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+            // ── Overall Attendance ─────────────────────────
+            SliverToBoxAdapter(child: Obx(() {
+              final stats = _student.dashboardStats.value;
+              if (stats == null && _student.isLoading.value) {
+                return const _Skeleton(height: 130);
+              }
+              if (stats == null) return const SizedBox.shrink();
+              return _OverallAttendanceCard(stats: stats);
+            })),
 
-  Widget _buildAlreadyMarkedCard() {
-    final session = attendance.activeSession.value!;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primary.withValues(alpha: 0.12),
-            AppTheme.accent.withValues(alpha: 0.08),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-            color: AppTheme.primary.withValues(alpha: 0.3), width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check_circle_rounded,
-                color: Colors.white, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Attendance Marked ✅',
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'You have already marked attendance for ${session.subjectName}.',
-                  style: const TextStyle(
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+            // ── Quick Stats ────────────────────────────────
+            SliverToBoxAdapter(child: Obx(() {
+              final stats = _student.dashboardStats.value;
+              if (stats == null) return const SizedBox.shrink();
+              return _QuickStatsRow(stats: stats);
+            })),
 
-// ─── Pulsing Dot Animation ───────────────────────────────────
-class _PulsingDot extends StatefulWidget {
-  @override
-  State<_PulsingDot> createState() => _PulsingDotState();
-}
+            // ── Today's Schedule (live 30s poll) ───────────
+            SliverToBoxAdapter(child: Obx(() {
+              final schedule = _student.todayScheduleLive;
+              return _TodayScheduleSection(schedule: schedule.toList());
+            })),
 
-class _PulsingDotState extends State<_PulsingDot>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
+            // ── Subject-wise Attendance ────────────────────
+            SliverToBoxAdapter(child: Obx(() {
+              final stats = _student.dashboardStats.value;
+              if (stats == null) return const SizedBox.shrink();
+              return _SubjectSection(stats: stats);
+            })),
 
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
-  }
+            // ── Recent Attendance ──────────────────────────
+            SliverToBoxAdapter(child: Obx(() {
+              final stats = _student.dashboardStats.value;
+              if (stats == null || stats.recentHistory.isEmpty) return const SizedBox.shrink();
+              return _RecentHistorySection(records: stats.recentHistory);
+            })),
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+            // ── Quick Actions ──────────────────────────────
+            const SliverToBoxAdapter(child: _QuickActionsSection()),
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) => Container(
-        width: 10,
-        height: 10,
-        decoration: BoxDecoration(
-          color: AppTheme.success.withValues(alpha: _anim.value),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.success.withValues(alpha: _anim.value * 0.5),
-              blurRadius: 6,
-              spreadRadius: 2,
-            ),
+            // ── Bottom padding for floating nav ───────────
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
       ),
@@ -996,87 +180,828 @@ class _PulsingDotState extends State<_PulsingDot>
   }
 }
 
-// ─── Attendance Ring ─────────────────────────────────────────
-class _AttendanceRing extends StatelessWidget {
-  final double percentage;
-  const _AttendanceRing({required this.percentage});
+// ═══════════════════════════════════════════════════════════
+// Profile Hero Card
+// ═══════════════════════════════════════════════════════════
+class _ProfileHero extends StatelessWidget {
+  final AuthController auth;
+  final String greeting;
+  final VoidCallback onMarkAttendance;
 
-  @override
-  Widget build(BuildContext context) {
-    final color = percentage >= 75
-        ? AppTheme.success
-        : percentage >= 60
-            ? AppTheme.warning
-            : AppTheme.error;
-    return SizedBox(
-      width: 110,
-      height: 110,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          CircularProgressIndicator(
-            value: percentage / 100,
-            strokeWidth: 8,
-            backgroundColor: color.withValues(alpha: 0.15),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-          ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '${percentage.toStringAsFixed(1)}%',
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 20,
-                ),
-              ),
-              const Text(
-                'Attended',
-                style: TextStyle(
-                  color: AppTheme.textHint,
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Helpers ────────────────────────────────────────────────
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    required this.color,
+  const _ProfileHero({
+    required this.auth,
+    required this.greeting,
+    required this.onMarkAttendance,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      decoration: BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: AppTheme.elevatedShadow,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+        child: Obx(() {
+          final s = auth.currentStudent.value;
+          final name = s?.name ?? 'Student';
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Top row ─────────────────
+              Row(children: [
+                // Avatar
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
+                  ),
+                  child: Center(
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : 'S',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 22,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Good $greeting 👋',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      Text(
+                        name.split(' ').first,
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Notification bell
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.notifications_outlined,
+                      color: Colors.white, size: 20),
+                ),
+              ]),
+              if (s != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.badge_outlined, color: Colors.white, size: 16),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${s.regNo}  •  ${s.department}  •  Year ${s.year}-${s.section}',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        DateFormat('d MMM').format(DateTime.now()),
+                        style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Face Warning Banner
+// ═══════════════════════════════════════════════════════════
+class _FaceWarningBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Get.toNamed(AppConstants.routeFaceRegister),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.warningLight,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.warning.withValues(alpha: 0.4)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.face_retouching_off_rounded,
+              color: AppTheme.warning, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Face Not Registered',
+                    style: GoogleFonts.poppins(
+                        color: AppTheme.warning,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13)),
+                Text('Tap to register — required for attendance.',
+                    style: GoogleFonts.poppins(
+                        color: AppTheme.textSecondary, fontSize: 11)),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_ios_rounded,
+              color: AppTheme.warning, size: 14),
+        ]),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Active Session Cards
+// ═══════════════════════════════════════════════════════════
+class _SessionCheckingCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: AppTheme.cardShadow,
+      ),
+      child: Row(children: [
+        const SizedBox(
+          width: 20, height: 20,
+          child: CircularProgressIndicator(
+            color: AppTheme.primary, strokeWidth: 2.5),
+        ),
+        const SizedBox(width: 14),
+        Text('Checking for active sessions...',
+            style: GoogleFonts.poppins(
+                color: AppTheme.textSecondary, fontSize: 14)),
+      ]),
+    );
+  }
+}
+
+class _AlreadyMarkedCard extends StatelessWidget {
+  final dynamic session;
+  const _AlreadyMarkedCard({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.successLight,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.success.withValues(alpha: 0.3)),
+        boxShadow: AppTheme.cardShadow,
+      ),
+      child: Row(children: [
         Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: AppTheme.success.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.check_circle_rounded,
+              color: AppTheme.success, size: 24),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 14),
         Expanded(
-          child: Text(label,
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 12)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Attendance Marked! ✓',
+                style: GoogleFonts.poppins(
+                    color: AppTheme.success,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15)),
+            Text('You\'re marked present for this session.',
+                style: GoogleFonts.poppins(
+                    color: AppTheme.textSecondary, fontSize: 12)),
+          ]),
         ),
-        Text(value,
-            style: TextStyle(
-                color: color, fontWeight: FontWeight.w700, fontSize: 14)),
-      ],
+      ]),
+    );
+  }
+}
+
+class _ActiveSessionCard extends StatefulWidget {
+  final dynamic session;
+  final AttendanceController attendance;
+  const _ActiveSessionCard({required this.session, required this.attendance});
+
+  @override
+  State<_ActiveSessionCard> createState() => _ActiveSessionCardState();
+}
+
+class _ActiveSessionCardState extends State<_ActiveSessionCard> {
+  Timer? _timer;
+  String _timeLeft = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTimer();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTimer());
+  }
+
+  void _updateTimer() {
+    if (!mounted) return;
+    // ActiveSessionInfo does not expose endTime — show a generic label.
+    setState(() => _timeLeft = 'Active');
+  }
+
+  @override
+  void dispose() { _timer?.cancel(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = widget.session;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      decoration: BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: AppTheme.elevatedShadow,
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(children: [
+              const Icon(Icons.circle, color: Colors.greenAccent, size: 8),
+              const SizedBox(width: 6),
+              Text('LIVE SESSION',
+                  style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10,
+                      letterSpacing: 0.5)),
+            ]),
+          ),
+          const Spacer(),
+          Text(_timeLeft,
+              style: GoogleFonts.poppins(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16)),
+        ]),
+        const SizedBox(height: 14),
+        Text(
+          session?.subjectName ?? 'Unknown Subject',
+          style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 18),
+        ),
+        const SizedBox(height: 6),
+        Row(children: [
+          if ((session?.classroomName ?? '').isNotEmpty) ...[
+            const Icon(Icons.meeting_room_outlined, color: Colors.white70, size: 14),
+            const SizedBox(width: 4),
+            Text(session!.classroomName,
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12)),
+            const SizedBox(width: 16),
+          ],
+        ]),
+        const SizedBox(height: 16),
+        GestureDetector(
+          onTap: () async {
+            widget.attendance.reset();
+            Get.toNamed(AppConstants.routeClassroomDetection);
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Center(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.how_to_reg_rounded, color: AppTheme.primary, size: 20),
+                const SizedBox(width: 8),
+                Text('Mark My Attendance',
+                    style: GoogleFonts.poppins(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15)),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Overall Attendance Card
+// ═══════════════════════════════════════════════════════════
+class _OverallAttendanceCard extends StatelessWidget {
+  final dynamic stats;
+  const _OverallAttendanceCard({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = stats.attendancePercentage as double;
+    final Color pctColor = pct >= 75 ? AppTheme.success : AppTheme.error;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: AppTheme.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Text('Overall Attendance',
+                style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary)),
+            const Spacer(),
+            if (pct < 75)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.errorLight,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('Below 75%',
+                    style: GoogleFonts.poppins(
+                        color: AppTheme.error,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11)),
+              ),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: [
+            // Circular ring
+            SAProgressRing(
+              percentage: pct,
+              size: 90,
+              strokeWidth: 8,
+              color: pctColor,
+            ),
+            const SizedBox(width: 24),
+            Expanded(child: Column(children: [
+              _StatRow(label: 'Total Classes', value: '${stats.totalClasses}', color: AppTheme.textPrimary),
+              const SizedBox(height: 10),
+              _StatRow(label: 'Attended', value: '${stats.attendedClasses}', color: AppTheme.success),
+              const SizedBox(height: 10),
+              _StatRow(label: 'Missed', value: '${stats.totalClasses - stats.attendedClasses}', color: AppTheme.error),
+            ])),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  final String label, value;
+  final Color color;
+  const _StatRow({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(width: 8, height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 8),
+      Text(label,
+          style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary)),
+      const Spacer(),
+      Text(value,
+          style: GoogleFonts.poppins(
+              fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+    ]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Quick Stats Row
+// ═══════════════════════════════════════════════════════════
+class _QuickStatsRow extends StatelessWidget {
+  final dynamic stats;
+  const _QuickStatsRow({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Row(children: [
+        _Chip(label: 'Today', value: '${stats.todayClasses}',
+            icon: Icons.today_rounded, color: AppTheme.primary),
+        const SizedBox(width: 8),
+        _Chip(label: 'Week', value: '${stats.weekClasses}',
+            icon: Icons.date_range_rounded, color: AppTheme.secondary),
+        const SizedBox(width: 8),
+        _Chip(label: 'Streak', value: '${stats.streak}d',
+            icon: Icons.local_fire_department_rounded, color: AppTheme.warning),
+        const SizedBox(width: 8),
+        _Chip(label: 'Missed', value: '${stats.missedThisMonth}',
+            icon: Icons.cancel_outlined, color: AppTheme.error,
+            onTap: () => Get.toNamed(AppConstants.routeMissedClasses)),
+      ]),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final String label, value;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+  const _Chip({required this.label, required this.value, required this.icon,
+    required this.color, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Column(children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 6),
+            Text(value,
+                style: GoogleFonts.poppins(
+                    fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+            Text(label,
+                style: GoogleFonts.poppins(fontSize: 10, color: AppTheme.textHint)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Today's Schedule
+// ═══════════════════════════════════════════════════════════
+class _TodayScheduleSection extends StatelessWidget {
+  final List<TodayScheduleEntry> schedule;
+  const _TodayScheduleSection({required this.schedule});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SASectionHeader(
+          title: "Today's Classes",
+          actionLabel: 'Full Timetable',
+          onAction: () => Get.toNamed(AppConstants.routeStudentTimetable),
+        ),
+        const SizedBox(height: 12),
+        if (schedule.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppTheme.bgCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: Row(children: [
+              const Icon(Icons.calendar_today_outlined,
+                  color: AppTheme.textHint, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'No classes scheduled today. Import a timetable from Admin panel.',
+                  style: GoogleFonts.poppins(
+                      color: AppTheme.textHint, fontSize: 12),
+                ),
+              ),
+            ]),
+          )
+        else
+          ...schedule.map((item) => _TimetableRow(item: item)),
+      ]),
+    );
+  }
+}
+
+
+class _TimetableRow extends StatelessWidget {
+  final TodayScheduleEntry item;
+  const _TimetableRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final attendance    = Get.find<AttendanceController>();
+    final isNow         = item.isCurrentPeriod;
+    final isMarked      = item.isMarked;      // attStatus == 'present'
+    final isAbsent      = item.isAbsent;      // attStatus == 'absent'
+    final isNotMarked   = !isMarked && !isAbsent && item.attStatus == 'not_marked';
+    final sessionActive = item.isActive;
+
+    // ── Color scheme ───────────────────────────────────────
+    Color borderColor = AppTheme.border;
+    Color bgColor     = AppTheme.bgCard;
+    if (isMarked) {
+      borderColor = AppTheme.success.withValues(alpha: 0.35);
+      bgColor     = AppTheme.success.withValues(alpha: 0.04);
+    } else if (isAbsent) {
+      borderColor = AppTheme.error.withValues(alpha: 0.35);
+      bgColor     = AppTheme.error.withValues(alpha: 0.04);
+    } else if (isNow) {
+      borderColor = AppTheme.primary.withValues(alpha: 0.4);
+      bgColor     = AppTheme.primary.withValues(alpha: 0.04);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor, width: isNow ? 1.5 : 1),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            // Period badge
+            if (item.periodNumber > 0)
+              Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgMuted,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text('P${item.periodNumber}',
+                    style: GoogleFonts.poppins(
+                        fontSize: 10, fontWeight: FontWeight.w700,
+                        color: AppTheme.textHint)),
+              ),
+            // Time badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isNow ? AppTheme.primary : AppTheme.bgMuted,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                item.timeLabel.isNotEmpty
+                    ? item.timeLabel
+                    : (item.startTime ?? '--'),
+                style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isNow ? Colors.white : AppTheme.textSecondary),
+              ),
+            ),
+            if (isNow) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text('NOW',
+                    style: GoogleFonts.poppins(
+                        color: AppTheme.success,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 9,
+                        letterSpacing: 0.5)),
+              ),
+            ],
+            const Spacer(),
+            // Status chip
+            if (isMarked)
+              _StatusChip(
+                label: 'Present ✓',
+                color: AppTheme.success,
+                icon: Icons.check_circle_rounded,
+              )
+            else if (isAbsent)
+              _StatusChip(
+                label: 'Absent',
+                color: AppTheme.error,
+                icon: Icons.cancel_rounded,
+              )
+            else if (isNow && sessionActive)
+              _StatusChip(
+                label: 'LIVE',
+                color: AppTheme.primary,
+                icon: Icons.circle,
+                pulse: true,
+              )
+            else if (isNotMarked)
+              _StatusChip(
+                label: 'Not Marked',
+                color: AppTheme.warning,
+                icon: Icons.warning_amber_rounded,
+              )
+            else
+              _StatusChip(
+                label: 'Upcoming',
+                color: AppTheme.textHint,
+                icon: Icons.schedule_rounded,
+              ),
+          ]),
+          const SizedBox(height: 8),
+          // Subject name
+          Text(
+            item.subjectName,
+            style: GoogleFonts.poppins(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 14),
+          ),
+          const SizedBox(height: 2),
+          // Faculty & room
+          Row(children: [
+            if (item.facultyName != null && item.facultyName!.isNotEmpty) ...[
+              const Icon(Icons.person_outline_rounded,
+                  color: AppTheme.textHint, size: 13),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(item.facultyName!,
+                    style: GoogleFonts.poppins(
+                        color: AppTheme.textHint, fontSize: 11),
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+            if (item.classroom.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              const Icon(Icons.meeting_room_outlined,
+                  color: AppTheme.textHint, size: 13),
+              const SizedBox(width: 3),
+              Text(item.classroom,
+                  style: GoogleFonts.poppins(
+                      color: AppTheme.textHint, fontSize: 11)),
+            ],
+          ]),
+
+          // Mark Attendance CTA — only when period is live AND session is active
+          if (isNow && sessionActive && !isMarked) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  await attendance.checkActiveSession();
+                  attendance.reset();
+                  Get.toNamed(AppConstants.routeClassroomDetection);
+                },
+                icon: const Icon(Icons.bluetooth_searching_rounded, size: 18),
+                label: Text('Mark Attendance Now',
+                    style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold, fontSize: 13)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+          ] else if (isNow && !sessionActive && !isMarked) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.hourglass_top_rounded,
+                  color: AppTheme.textHint, size: 14),
+              const SizedBox(width: 6),
+              Text('Waiting for teacher to start session...',
+                  style: GoogleFonts.poppins(
+                      color: AppTheme.textHint,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic)),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Reusable colored status chip
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final IconData icon;
+  final bool pulse;
+  const _StatusChip({
+    required this.label,
+    required this.color,
+    required this.icon,
+    this.pulse = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: color, size: 11),
+        const SizedBox(width: 4),
+        Text(label,
+            style: GoogleFonts.poppins(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2)),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Subject-wise Attendance
+// ═══════════════════════════════════════════════════════════
+class _SubjectSection extends StatelessWidget {
+  final dynamic stats;
+  const _SubjectSection({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    if (stats.subjectWise.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SASectionHeader(
+          title: 'Subject-wise Attendance',
+          actionLabel: 'Details',
+          onAction: () => Get.toNamed(AppConstants.routeSubjectDetail),
+        ),
+        const SizedBox(height: 12),
+        ...stats.subjectWise.map<Widget>((sub) => _SubjectCard(subject: sub)),
+      ]),
     );
   }
 }
@@ -1085,110 +1010,210 @@ class _SubjectCard extends StatelessWidget {
   final dynamic subject;
   const _SubjectCard({required this.subject});
 
-  @override
-  Widget build(BuildContext context) {
-    return GlassmorphismCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.menu_book_rounded,
-                    color: AppTheme.primary, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      subject.displayLabel,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                    if (subject.facultyName != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          subject.facultyName,
-                          style: const TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _pctColor(subject.percentage).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${subject.percentage.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    color: _pctColor(subject.percentage),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: subject.percentage / 100,
-              minHeight: 6,
-              backgroundColor: _pctColor(subject.percentage).withValues(alpha: 0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(_pctColor(subject.percentage)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${subject.attended}/${subject.total} classes',
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _pctColor(double pct) {
+  Color get _color {
+    final pct = (subject as SubjectAttendance).percentage;
     if (pct >= 75) return AppTheme.success;
     if (pct >= 60) return AppTheme.warning;
     return AppTheme.error;
   }
-}
-
-class _LoadingCard extends StatelessWidget {
-  const _LoadingCard();
 
   @override
   Widget build(BuildContext context) {
+    final pct   = (subject as SubjectAttendance).percentage;
+    final total = (subject as SubjectAttendance).total;
+    final pres  = (subject as SubjectAttendance).attended;
+
     return Container(
-      height: 140,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: AppTheme.subtleShadow,
       ),
-      child: const Center(
-        child: CircularProgressIndicator(color: AppTheme.primary),
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: _color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.book_outlined, color: _color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(subject.subjectName ?? '—',
+                style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                overflow: TextOverflow.ellipsis),
+            Text(subject.facultyName ?? '—',
+                style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint)),
+          ])),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text('${pct.toStringAsFixed(1)}%',
+                style: GoogleFonts.poppins(
+                    fontSize: 16, fontWeight: FontWeight.w700, color: _color)),
+            Text('$pres / $total',
+                style: GoogleFonts.poppins(fontSize: 10, color: AppTheme.textHint)),
+          ]),
+        ]),
+        const SizedBox(height: 12),
+        // Progress bar
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: pct / 100,
+            backgroundColor: AppTheme.bgMuted,
+            valueColor: AlwaysStoppedAnimation<Color>(_color),
+            minHeight: 6,
+          ),
+        ),
+      ]),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Recent History
+// ═══════════════════════════════════════════════════════════
+class _RecentHistorySection extends StatelessWidget {
+  final List<dynamic> records;
+  const _RecentHistorySection({required this.records});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SASectionHeader(
+          title: 'Recent Attendance',
+          actionLabel: 'View All',
+          onAction: () => Get.toNamed(AppConstants.routeAttendanceHistory),
+        ),
+        const SizedBox(height: 12),
+        ...records.take(5).map<Widget>((r) => _HistoryRow(record: r)),
+      ]),
+    );
+  }
+}
+
+class _HistoryRow extends StatelessWidget {
+  final dynamic record;
+  const _HistoryRow({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    final rec = record as AttendanceModel;
+    final status = rec.status;
+    final color = status == 'present'
+        ? AppTheme.success
+        : status == 'late' ? AppTheme.warning : AppTheme.error;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: AppTheme.subtleShadow,
+      ),
+      child: Row(children: [
+        Container(width: 8, height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(rec.subjectName ?? '—',
+              style: GoogleFonts.poppins(
+                  fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+          Text(rec.date.toString().substring(0, 10),
+              style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint)),
+        ])),
+        SABadge(label: status[0].toUpperCase() + status.substring(1), color: color),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Quick Actions
+// ═══════════════════════════════════════════════════════════
+class _QuickActionsSection extends StatelessWidget {
+  const _QuickActionsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = [
+      {'label': 'Full Report', 'icon': Icons.assessment_rounded,
+        'color': AppTheme.primary, 'route': AppConstants.routeReports},
+      {'label': 'History', 'icon': Icons.history_rounded,
+        'color': AppTheme.secondary, 'route': AppConstants.routeAttendanceHistory},
+      {'label': 'Analytics', 'icon': Icons.bar_chart_rounded,
+        'color': AppTheme.accent, 'route': AppConstants.routeSemesterAnalytics},
+      {'label': 'Face Setup', 'icon': Icons.face_rounded,
+        'color': AppTheme.warning, 'route': AppConstants.routeFaceRegister},
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Quick Actions',
+            style: GoogleFonts.poppins(
+                fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+        const SizedBox(height: 12),
+        GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          children: actions.map((a) {
+            final color = a['color'] as Color;
+            return GestureDetector(
+              onTap: () => Get.toNamed(a['route'] as String),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: color.withValues(alpha: 0.15)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(a['icon'] as IconData, color: color, size: 24),
+                    const SizedBox(height: 6),
+                    Text(a['label'] as String,
+                        style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textSecondary),
+                        textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Loading skeleton ─────────────────────────────────────
+class _Skeleton extends StatelessWidget {
+  final double height;
+  const _Skeleton({required this.height});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+    height: height,
+    decoration: BoxDecoration(
+      color: AppTheme.bgMuted,
+      borderRadius: BorderRadius.circular(20),
+    ),
+  );
 }

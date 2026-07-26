@@ -6,6 +6,7 @@ backend/**/__pycache__/
 backend/**/*.pyc
 backend/*.db
 backend/*.sqlite3
+*.log
 
 # ─── SECRETS — NEVER COMMIT ─────────────────────────────────
 backend/.env
@@ -51,5 +52,3 @@ backend/models_cache/
 
 # ─── Static files (Student profile photos) ───────────────────
 backend/static/faces/
-
-

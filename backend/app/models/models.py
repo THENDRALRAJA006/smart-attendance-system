@@ -1,6 +1,7 @@
 # ============================================================
-# SmartAttend — SQLAlchemy ORM Models (v5)
+# SmartAttend — SQLAlchemy ORM Models (v13 — ERP Timetable)
 # ArcFace embeddings stored in face_embeddings table.
+# OCR timetable module REMOVED; ERP timetable module ADDED.
 # ============================================================
 
 from datetime import datetime
@@ -27,6 +28,7 @@ class Student(Base):
     email            = Column(String(150), unique=True, nullable=False, index=True)
     phone_number     = Column(String(20), nullable=True)
     password_hash    = Column(String(255), nullable=False)
+    is_active        = Column(Boolean, default=True, nullable=False)  # False = suspended by admin
     # Legacy field kept for schema compatibility (unused after ArcFace migration)
     face_id          = Column(String(255), nullable=True)
     face_image_url   = Column(String(500), nullable=True)
@@ -40,20 +42,26 @@ class Student(Base):
 
 
 class Faculty(Base):
-    """Faculty user model."""
+    """Faculty user model — extended with ERP fields."""
     __tablename__ = "faculty"
 
     id            = Column(Integer, primary_key=True, index=True)
     name          = Column(String(100), nullable=False)
     department    = Column(String(100), nullable=True)
     email         = Column(String(150), unique=True, nullable=False, index=True)
+    phone_number  = Column(String(20), nullable=True)
     password_hash = Column(String(255), nullable=False)
+    is_active     = Column(Boolean, default=True, nullable=False)
+    # v13: ERP fields (nullable for backward compat)
+    employee_id   = Column(String(30), nullable=True, index=True)
+    designation   = Column(String(100), nullable=True)
     created_at    = Column(DateTime, default=func.now())
 
     # Relationships
     subjects              = relationship("Subject", back_populates="faculty")
     sessions              = relationship("Session", back_populates="faculty")
     faculty_subject_links = relationship("FacultySubject", back_populates="faculty")
+    erp_timetable_slots   = relationship("WeeklyTimetableSlot", back_populates="faculty")
 
 
 class Admin(Base):
@@ -63,7 +71,9 @@ class Admin(Base):
     id            = Column(Integer, primary_key=True, index=True)
     name          = Column(String(100), nullable=False)
     email         = Column(String(150), unique=True, nullable=False, index=True)
+    phone_number  = Column(String(20), nullable=True)
     password_hash = Column(String(255), nullable=False)
+    is_active     = Column(Boolean, default=True, nullable=False)
     created_at    = Column(DateTime, default=func.now())
 
 
@@ -72,15 +82,16 @@ class Classroom(Base):
     __tablename__ = "classrooms"
 
     id               = Column(Integer, primary_key=True, index=True)
-    room_name        = Column(String(50), unique=True, nullable=False)  # e.g. CLASSROOM_A101
-    ble_uuid         = Column(String(100), unique=True, nullable=False)
-    attendance_code  = Column(String(6), nullable=True)  # internal only
+    room_name        = Column(String(50), unique=True, nullable=False)  # e.g. A101
+    ble_uuid         = Column(String(100), unique=True, nullable=True)   # nullable for ERP classrooms without beacon
+    attendance_code  = Column(String(6), nullable=True)                  # internal only
     created_at       = Column(DateTime, default=func.now())
 
     # Relationships
     sessions    = relationship("Session", back_populates="classroom")
     attendances = relationship("Attendance", back_populates="classroom")
     ble_beacon  = relationship("BleBeacon", back_populates="classroom", uselist=False)
+    erp_timetable_slots = relationship("WeeklyTimetableSlot", back_populates="classroom")
 
 
 class BleBeacon(Base):
@@ -94,7 +105,7 @@ class BleBeacon(Base):
     classroom_id   = Column(Integer, ForeignKey("classrooms.id", ondelete="CASCADE"), nullable=False, unique=True)
     beacon_uuid    = Column(String(100), unique=True, nullable=False)
     beacon_name    = Column(String(100), nullable=False)
-    rssi_threshold = Column(Integer, nullable=False, default=-70)
+    rssi_threshold = Column(Integer, nullable=False, default=-75)
     tx_power       = Column(Integer, nullable=True)
     is_active      = Column(Boolean, default=True)
     last_seen_at   = Column(DateTime, nullable=True)
@@ -165,6 +176,7 @@ class FaceEmbedding(Base):
     student_id     = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
     embedding_json = Column(Text, nullable=False)  # JSON string of the 512-dim float list
     pose_name      = Column(String(50), nullable=False)
+    embedding_version = Column(String(20), nullable=True, default="buffalo_s", server_default="buffalo_l")
     created_at     = Column(DateTime, default=func.now())
 
     # Relationships
@@ -207,7 +219,7 @@ class FacultySubject(Base):
 
 
 class ClassTimetable(Base):
-    """Timetable entry linking class, subject, faculty, and classroom."""
+    """Legacy timetable entry — kept for schema compat. Use WeeklyTimetableSlot for new data."""
     __tablename__ = "class_timetable"
 
     id           = Column(Integer, primary_key=True, index=True)
@@ -232,6 +244,7 @@ class Session(Base):
     """
     An attendance session created by a faculty member.
     One session per class period — attendance is tied to sessions.
+    v10: added department/year/section targeting, BLE radius, duration, status.
     """
     __tablename__ = "sessions"
 
@@ -239,11 +252,20 @@ class Session(Base):
     classroom_id    = Column(Integer, ForeignKey("classrooms.id"), nullable=False)
     subject_id      = Column(Integer, ForeignKey("subjects.id"), nullable=False)
     faculty_id      = Column(Integer, ForeignKey("faculty.id"), nullable=False)
-    attendance_code = Column(String(6), nullable=False)  # internal only — not shown to students
+    attendance_code = Column(String(6), nullable=False)  # internal only
     start_time      = Column(DateTime, default=func.now())
     end_time        = Column(DateTime, nullable=True)
     is_active       = Column(Boolean, default=True)
     created_at      = Column(DateTime, default=func.now())
+
+    # ── v10 additions ─────────────────────────────────────────
+    department        = Column(String(100), nullable=True)  # target class dept
+    year              = Column(Integer, nullable=True)       # target year (1–4)
+    section           = Column(String(5), nullable=True)     # target section
+    attendance_radius = Column(Integer, nullable=False, default=20)  # metres
+    duration_minutes  = Column(Integer, nullable=False, default=15)  # minutes
+    session_name      = Column(String(200), nullable=True)   # auto-generated label
+    status            = Column(String(20), nullable=False, default="active")  # active|closed
 
     # Relationships
     classroom        = relationship("Classroom", back_populates="sessions")
@@ -310,3 +332,283 @@ class Attendance(Base):
             unique=True,
         ),
     )
+
+
+class AttendanceDeviceLog(Base):
+    """
+    Session-scoped device usage log.
+
+    Records which Android device (identified by ANDROID_ID) was used to mark
+    attendance in a given session. This prevents two different students from
+    using the SAME physical phone to mark attendance in the SAME class session.
+
+    Scope: per-session only. The same device CAN be used again in a different
+    session (e.g., afternoon class after a morning class).
+
+    NOT a permanent device lock — see DeviceBinding for that.
+    """
+    __tablename__ = "attendance_device_log"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    session_id      = Column(
+        Integer,
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    student_id      = Column(
+        Integer,
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    device_id       = Column(String(64), nullable=False, index=True)  # Android ANDROID_ID
+    attendance_time = Column(DateTime, nullable=False, default=func.now())
+
+    # Relationships
+    session = relationship("Session")
+    student = relationship("Student")
+
+    __table_args__ = (
+        # One entry per device per session — a device can only mark once per session
+        Index("uq_device_session", "session_id", "device_id", unique=True),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<AttendanceDeviceLog session={self.session_id} "
+            f"student={self.student_id} device={self.device_id}>"
+        )
+
+
+class AuditLog(Base):
+    """
+    Immutable audit trail — one row per admin action.
+
+    Every mutation made through the admin panel is recorded here.
+    Records are never deleted (admin cannot delete audit logs via API).
+
+    actor_role: 'admin' | 'system'
+    target_type: 'student' | 'faculty' | 'attendance' | 'session' |
+                 'face' | 'device_binding' | 'ble_beacon' | 'settings' | 'classroom'
+    """
+    __tablename__ = "audit_logs"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    actor_id    = Column(Integer, nullable=True, index=True)       # admin.id
+    actor_name  = Column(String(100), nullable=True)               # denormalized for history
+    actor_role  = Column(String(20), nullable=False, default="admin")
+    action      = Column(String(100), nullable=False, index=True)  # e.g. "student.suspend"
+    target_type = Column(String(50), nullable=True, index=True)
+    target_id   = Column(Integer, nullable=True)
+    detail      = Column(Text, nullable=True)                      # JSON-serialized extra info
+    ip_address  = Column(String(45), nullable=True)                # IPv4 or IPv6
+    user_agent  = Column(String(500), nullable=True)
+    created_at  = Column(DateTime, nullable=False, default=func.now(), index=True)
+
+    def __repr__(self) -> str:
+        return f"<AuditLog {self.action} by {self.actor_name} at {self.created_at}>"
+
+
+class SystemSettings(Base):
+    """
+    Key-value settings store for admin-configurable system parameters.
+
+    category: 'general' | 'attendance' | 'face' | 'ble' | 'security'
+
+    Examples:
+        college_name       = "SmartCollege"
+        attendance_window  = "30"          (minutes, attendance open after session start)
+        face_threshold     = "0.75"
+        ble_rssi_threshold = "-80"
+        working_days       = "Mon,Tue,Wed,Thu,Fri"
+    """
+    __tablename__ = "system_settings"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    key        = Column(String(100), unique=True, nullable=False, index=True)
+    value      = Column(Text, nullable=True)
+    category   = Column(String(30), nullable=False, default="general", index=True)
+    label      = Column(String(200), nullable=True)   # Human-readable label for UI
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    def __repr__(self) -> str:
+        return f"<SystemSettings {self.key}={self.value}>"
+
+
+# ─── ERP Timetable Module (v13) ─────────────────────────────
+
+
+class ErpDepartment(Base):
+    """
+    Academic department. Supports unlimited departments.
+    Preloaded with 11 standard departments on first run.
+    """
+    __tablename__ = "erp_departments"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    name         = Column(String(200), nullable=False)          # Full name
+    short_name   = Column(String(20), nullable=False)           # Abbreviation e.g. CSE, AIML
+    degree_type  = Column(String(20), nullable=False, default="B.E.")  # B.E. | B.Tech. | M.E. | M.Tech.
+    is_active    = Column(Boolean, default=True, nullable=False)
+    created_at   = Column(DateTime, default=func.now())
+    updated_at   = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    sections     = relationship("ErpDepartmentSection", back_populates="department",
+                                cascade="all, delete-orphan")
+    erp_subjects = relationship("ErpSubject", back_populates="department",
+                                cascade="all, delete-orphan")
+    timetable_slots = relationship("WeeklyTimetableSlot", back_populates="department")
+
+    def __repr__(self) -> str:
+        return f"<ErpDepartment {self.short_name}>"
+
+
+class ErpDepartmentSection(Base):
+    """
+    Section configuration per department per year.
+    e.g. AIML Year 1 has sections A, B, C, D.
+    Admin can configure unlimited sections.
+    """
+    __tablename__ = "erp_department_sections"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    department_id = Column(Integer, ForeignKey("erp_departments.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    year          = Column(Integer, nullable=False)    # 1, 2, 3, 4
+    section       = Column(String(5), nullable=False)  # A, B, C, ...
+    classroom_id  = Column(Integer, ForeignKey("classrooms.id", ondelete="SET NULL"),
+                           nullable=True)              # default classroom for this section
+    student_count = Column(Integer, nullable=True, default=0)
+    created_at    = Column(DateTime, default=func.now())
+
+    # Relationships
+    department = relationship("ErpDepartment", back_populates="sections")
+    classroom  = relationship("Classroom")
+
+    __table_args__ = (
+        Index("uq_dept_year_section", "department_id", "year", "section", unique=True),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ErpDepartmentSection dept={self.department_id} Y{self.year}{self.section}>"
+
+
+class PeriodTiming(Base):
+    """
+    Academic period timing configuration.
+    Admin configures periods, breaks, and lunch times.
+    Default: 9 slots (7 periods + break + lunch).
+    """
+    __tablename__ = "period_timings"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    label       = Column(String(30), nullable=False)   # "Period 1", "Break", "Lunch"
+    start_time  = Column(String(8), nullable=False)    # HH:MM
+    end_time    = Column(String(8), nullable=False)    # HH:MM
+    period_type = Column(String(20), nullable=False, default="Theory")
+    # Theory | Lab | Break | Lunch | Tutorial | Elective
+    order_index = Column(Integer, nullable=False, default=0)   # Sort order
+    is_active   = Column(Boolean, default=True, nullable=False)
+    created_at  = Column(DateTime, default=func.now())
+
+    # Relationships
+    timetable_slots = relationship("WeeklyTimetableSlot", back_populates="period_timing")
+
+    __table_args__ = (
+        Index("uq_period_order", "order_index", unique=True),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PeriodTiming {self.label} {self.start_time}-{self.end_time}>"
+
+
+class ErpSubject(Base):
+    """
+    ERP subject — belongs to a department.
+    Admin creates subjects per department and assigns to timetable slots.
+    """
+    __tablename__ = "erp_subjects"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    subject_name  = Column(String(150), nullable=False)
+    subject_code  = Column(String(30), nullable=True)
+    department_id = Column(Integer, ForeignKey("erp_departments.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    year          = Column(Integer, nullable=True)        # 1-4, None = all years
+    credits       = Column(Integer, nullable=True)
+    subject_type  = Column(String(20), nullable=False, default="Theory")
+    # Theory | Lab | Elective | Tutorial
+    is_active     = Column(Boolean, default=True, nullable=False)
+    created_at    = Column(DateTime, default=func.now())
+    updated_at    = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    department      = relationship("ErpDepartment", back_populates="erp_subjects")
+    timetable_slots = relationship("WeeklyTimetableSlot", back_populates="erp_subject")
+
+    def __repr__(self) -> str:
+        return f"<ErpSubject {self.subject_name}>"
+
+
+class WeeklyTimetableSlot(Base):
+    """
+    One cell in the weekly timetable grid.
+    Identifies: Department + Year + Section + Day + Period → Subject + Faculty + Room + Type.
+    This is the primary ERP timetable data store.
+    """
+    __tablename__ = "weekly_timetable_slots"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    department_id   = Column(Integer, ForeignKey("erp_departments.id", ondelete="CASCADE"),
+                             nullable=False, index=True)
+    year            = Column(Integer, nullable=False)       # 1-4
+    section         = Column(String(5), nullable=False)     # A, B, C, ...
+    day_of_week     = Column(String(10), nullable=False)    # Monday..Saturday
+    period_timing_id= Column(Integer, ForeignKey("period_timings.id", ondelete="CASCADE"),
+                             nullable=False, index=True)
+
+    # Assigned resources (nullable — breaks/lunch have no subject)
+    erp_subject_id  = Column(Integer, ForeignKey("erp_subjects.id", ondelete="SET NULL"),
+                             nullable=True)
+    faculty_id      = Column(Integer, ForeignKey("faculty.id", ondelete="SET NULL"),
+                             nullable=True)
+    classroom_id    = Column(Integer, ForeignKey("classrooms.id", ondelete="SET NULL"),
+                             nullable=True)
+
+    # Class metadata
+    class_type      = Column(String(20), nullable=False, default="Theory")
+    # Theory | Lab | Elective | Tutorial | Break | Lunch | Free
+
+    # Academic context
+    academic_year   = Column(String(20), nullable=True)    # "2025-2026"
+    semester        = Column(Integer, nullable=True)        # 1 or 2
+
+    # Soft delete
+    is_active       = Column(Boolean, default=True, nullable=False)
+
+    created_at      = Column(DateTime, default=func.now())
+    updated_at      = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    department    = relationship("ErpDepartment", back_populates="timetable_slots")
+    period_timing = relationship("PeriodTiming", back_populates="timetable_slots")
+    erp_subject   = relationship("ErpSubject", back_populates="timetable_slots")
+    faculty       = relationship("Faculty", back_populates="erp_timetable_slots")
+    classroom     = relationship("Classroom", back_populates="erp_timetable_slots")
+
+    __table_args__ = (
+        Index(
+            "uq_timetable_slot",
+            "department_id", "year", "section",
+            "day_of_week", "period_timing_id",
+            unique=True,
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<WeeklyTimetableSlot dept={self.department_id} "
+            f"Y{self.year}{self.section} {self.day_of_week} P{self.period_timing_id}>"
+        )

@@ -161,7 +161,7 @@ class TestMarkAttendance:
             "/attendance/mark",
             data={
                 "session_id": 1,
-                "rssi": -100,  # Way below threshold (-70)
+                "rssi": -100,  # Way below threshold (-75)
             },
             files={"file": ("test.jpg", b"imagebytes", "image/jpeg")},
             headers=student_headers,

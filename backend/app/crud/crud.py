@@ -379,7 +379,7 @@ def create_ble_beacon(db: Session, data: dict) -> BleBeacon:
         classroom_id=data["classroom_id"],
         beacon_uuid=data["beacon_uuid"],
         beacon_name=data["beacon_name"],
-        rssi_threshold=data.get("rssi_threshold", -70),
+        rssi_threshold=data.get("rssi_threshold", -75),
         tx_power=data.get("tx_power"),
     )
     db.add(beacon)

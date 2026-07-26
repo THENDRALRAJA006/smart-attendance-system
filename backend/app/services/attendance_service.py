@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.models import (
     Attendance,
+    AttendanceDeviceLog,
     AttendanceLink,
     BleBeacon,
     Session as SessionModel,
@@ -17,7 +18,7 @@ from app.models.models import (
 
 logger = logging.getLogger(__name__)
 
-RSSI_THRESHOLD = -70
+RSSI_THRESHOLD = -80
 
 
 def create_attendance_link(
@@ -212,6 +213,25 @@ def validate_student_eligibility(
 ) -> None:
     """Verify that the student belongs to the subject's department."""
 
+    logger.info(
+        "[ELIGIBILITY] ========== ELIGIBILITY CHECK ==========\n"
+        "  Student ID:     %s\n"
+        "  Student Name:   %s\n"
+        "  Student Dept:   '%s'\n"
+        "  Student Year:   %s\n"
+        "  Student Section: '%s'\n"
+        "  Session ID:     %s\n"
+        "  Subject ID:     %s\n"
+        "  ===================================================",
+        student.id,
+        student.name,
+        student.department,
+        getattr(student, 'year', 'N/A'),
+        getattr(student, 'section', 'N/A'),
+        session.id,
+        session.subject_id,
+    )
+
     subject = (
         db.query(Subject)
         .filter(Subject.id == session.subject_id)
@@ -220,15 +240,22 @@ def validate_student_eligibility(
 
     if subject is None:
         logger.warning(
-            "[ELIGIBILITY] Subject id=%s not found; skipping check",
+            "[ELIGIBILITY] ❌ Subject id=%s not found; skipping check",
             session.subject_id,
         )
         return
 
+    logger.info(
+        "[ELIGIBILITY] Subject found: id=%s, name='%s', dept='%s'",
+        subject.id,
+        subject.subject_name,
+        subject.department,
+    )
+
     if not subject.department or not subject.department.strip():
         logger.info(
             "[ELIGIBILITY] No department restriction: subject_id=%s, "
-            "student_id=%s",
+            "student_id=%s — allowing all students",
             subject.id,
             student.id,
         )
@@ -242,20 +269,23 @@ def validate_student_eligibility(
     subject_department = subject.department.strip().casefold()
 
     logger.info(
-        "[ELIGIBILITY] student_id=%s, student_department=%s, "
-        "subject_department=%s, session_id=%s",
-        student.id,
+        "[ELIGIBILITY] Comparing departments: student='%s' vs subject='%s' "
+        "(casefold: '%s' vs '%s')",
         student.department,
         subject.department,
-        session.id,
+        student_department,
+        subject_department,
     )
 
     # Allow missing student department, but reject a clear mismatch.
     if student_department and student_department != subject_department:
         logger.warning(
-            "[ELIGIBILITY] REJECTED: student_id=%s, session_id=%s",
+            "[ELIGIBILITY] ❌ REJECTED: student_id=%s (dept='%s') "
+            "not eligible for session_id=%s (dept='%s')",
             student.id,
+            student.department,
             session.id,
+            subject.department,
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -268,9 +298,11 @@ def validate_student_eligibility(
         )
 
     logger.info(
-        "[ELIGIBILITY] APPROVED: student_id=%s, session_id=%s",
+        "[ELIGIBILITY] ✅ APPROVED: student_id=%s, session_id=%s "
+        "(dept='%s' matched)",
         student.id,
         session.id,
+        subject.department,
     )
 
 
@@ -335,3 +367,101 @@ def mark_attendance(
     )
 
     return record
+
+
+# ─── Session-scoped Device ID validation ─────────────────────────────────────
+
+def check_device_in_session(
+    db: Session,
+    session_id: int,
+    device_id: str,
+    current_student_id: int,
+) -> None:
+    """
+    Reject attendance if this Android device has ALREADY been used to mark
+    attendance in the SAME session by a DIFFERENT student.
+
+    Scope: per-session only. The phone is free to be used again in any
+    OTHER session (morning vs afternoon class are independent).
+
+    Args:
+        db:                 SQLAlchemy session.
+        session_id:         The current attendance session.
+        device_id:          Android ANDROID_ID string from the device.
+        current_student_id: The student currently trying to mark attendance.
+
+    Raises:
+        HTTPException 403: If the device was already used by a different student.
+    """
+    existing = (
+        db.query(AttendanceDeviceLog)
+        .filter(
+            AttendanceDeviceLog.session_id == session_id,
+            AttendanceDeviceLog.device_id  == device_id,
+        )
+        .first()
+    )
+
+    if existing is None:
+        # No record → this device has not been used in this session yet. Allow.
+        return
+
+    if existing.student_id == current_student_id:
+        # Same student re-attempting (e.g., retry after network failure). Allow;
+        # the duplicate-attendance check will catch the actual duplicate.
+        return
+
+    # A DIFFERENT student already used this device in this session → reject.
+    logger.warning(
+        "[DEVICE_LOG] Device reuse blocked: session=%s, device=%s, "
+        "previous_student=%s, current_student=%s",
+        session_id,
+        device_id,
+        existing.student_id,
+        current_student_id,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="This device has already been used to mark attendance for this attendance session.",
+    )
+
+
+def log_device_attendance(
+    db: Session,
+    session_id: int,
+    student_id: int,
+    device_id: str,
+) -> AttendanceDeviceLog:
+    """
+    Write a device log entry after successful attendance is marked.
+    Uses INSERT IGNORE semantics via a try/except so retries don't crash.
+    """
+    try:
+        log_entry = AttendanceDeviceLog(
+            session_id=session_id,
+            student_id=student_id,
+            device_id=device_id,
+        )
+        db.add(log_entry)
+        db.commit()
+        db.refresh(log_entry)
+        logger.info(
+            "[DEVICE_LOG] Logged: session=%s, student=%s, device=%s",
+            session_id, student_id, device_id,
+        )
+        return log_entry
+    except Exception as exc:
+        # Unique constraint violation on retry — safe to swallow.
+        db.rollback()
+        logger.debug(
+            "[DEVICE_LOG] Already exists (retry?): session=%s device=%s — %s",
+            session_id, device_id, exc,
+        )
+        return (
+            db.query(AttendanceDeviceLog)
+            .filter(
+                AttendanceDeviceLog.session_id == session_id,
+                AttendanceDeviceLog.device_id  == device_id,
+            )
+            .first()
+        )

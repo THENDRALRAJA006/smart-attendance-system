@@ -19,20 +19,21 @@ class ProfileScreen extends StatelessWidget {
     final auth = AuthController.to;
 
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
-        child: SafeArea(
+      backgroundColor: AppTheme.bgPage,
+      body: SafeArea(
           child: CustomScrollView(
             slivers: [
               // ─── App Bar ─────────────────────────────────
               SliverAppBar(
-                expandedHeight: 200,
+                expandedHeight: 220,
                 pinned: true,
-                backgroundColor: Colors.transparent,
+                backgroundColor: AppTheme.bgCard,
                 elevation: 0,
+                scrolledUnderElevation: 1,
+                surfaceTintColor: Colors.transparent,
                 leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new, color: AppTheme.textPrimary),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: AppTheme.textPrimary),
                   onPressed: () => Get.back(),
                 ),
                 flexibleSpace: FlexibleSpaceBar(
@@ -60,7 +61,6 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
       ),
     );
   }
@@ -76,7 +76,7 @@ class _ProfileHeader extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF7C5CFF), Color(0xFF5A3FCC)],
+          colors: [Color(0xFF6C63FF), Color(0xFF8B5CF6)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -245,18 +245,28 @@ class _InfoSection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(item.icon, size: 18, color: AppTheme.primary),
           const SizedBox(width: 12),
-          Text(item.label,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-          const Spacer(),
-          Text(item.value,
+          Text(
+            item.label,
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              item.value,
+              textAlign: TextAlign.end,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: item.valueColor ?? AppTheme.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-              )),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -278,25 +288,64 @@ class _AttendanceStats extends StatelessWidget {
     final student = AuthController.to.currentStudent.value;
     if (student == null) return const SizedBox.shrink();
 
+    final pct = student.attendancePercentage ?? 0.0;
+    final Color tierColor;
+    final String tierLabel;
+    if (pct >= 85) {
+      tierColor = AppTheme.success;
+      tierLabel = 'Excellent';
+    } else if (pct >= 75) {
+      tierColor = AppTheme.primary;
+      tierLabel = 'Good';
+    } else if (pct >= 60) {
+      tierColor = AppTheme.warning;
+      tierLabel = 'At Risk';
+    } else {
+      tierColor = AppTheme.error;
+      tierLabel = 'Critical';
+    }
+
     return Container(
       decoration: AppTheme.glassmorphismCard,
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Attendance Overview',
-              style: TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              )),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Attendance Overview',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  )),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: tierColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: tierColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  tierLabel,
+                  style: TextStyle(
+                    color: tierColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
               _StatCircle(
-                value: student.attendancePercentage ?? 0.0,
+                value: pct,
                 label: 'Overall',
-                color: AppTheme.primary,
+                color: tierColor,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -338,38 +387,46 @@ class _StatCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 90,
-      height: 90,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox(
-            width: 90,
-            height: 90,
-            child: CircularProgressIndicator(
-              value: value / 100,
-              strokeWidth: 8,
-              backgroundColor: AppTheme.bgCardLight,
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: value / 100),
+      duration: const Duration(milliseconds: 1200),
+      curve: Curves.easeOutCubic,
+      builder: (_, animVal, __) {
+        return SizedBox(
+          width: 90,
+          height: 90,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Text(
-                '${value.toStringAsFixed(0)}%',
-                style: TextStyle(
-                  color: color,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              SizedBox(
+                width: 90,
+                height: 90,
+                child: CircularProgressIndicator(
+                  value: animVal,
+                  strokeWidth: 8,
+                  backgroundColor: AppTheme.bgCardLight,
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                  strokeCap: StrokeCap.round,
                 ),
               ),
-              Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${(animVal * 100).toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -415,20 +472,26 @@ class _AccountActions extends StatelessWidget {
               label: 'Update Face Registration',
               onTap: () => Get.toNamed(AppConstants.routeFaceRegister),
             ),
-            const Divider(height: 1, color: Color(0x22FFFFFF)),
+            const Divider(height: 1, color: Color(0x22000000)),
             _ActionTile(
               icon: Icons.history,
               label: 'Attendance History',
               onTap: () => Get.toNamed(AppConstants.routeAttendanceHistory),
             ),
-            const Divider(height: 1, color: Color(0x22FFFFFF)),
+            const Divider(height: 1, color: Color(0x22000000)),
             _ActionTile(
               icon: Icons.bar_chart,
               label: 'Reports & Analytics',
               onTap: () => Get.toNamed(AppConstants.routeReports),
             ),
-            const Divider(height: 1, color: Color(0x22FFFFFF)),
+            const Divider(height: 1, color: Color(0x22000000)),
           ],
+          _ActionTile(
+            icon: Icons.lock_reset_rounded,
+            label: 'Change Password',
+            onTap: () => Get.toNamed(AppConstants.routeChangePassword),
+          ),
+          const Divider(height: 1, color: Color(0x22000000)),
           _ActionTile(
             icon: Icons.logout,
             label: 'Sign Out',

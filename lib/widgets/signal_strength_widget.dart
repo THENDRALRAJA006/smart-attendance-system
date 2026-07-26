@@ -47,7 +47,7 @@ class _SignalStrengthWidgetState extends State<SignalStrengthWidget>
   int get _bars {
     if (widget.rssi >= -50) return 4;
     if (widget.rssi >= -60) return 3;
-    if (widget.rssi >= -70) return 2;
+    if (widget.rssi >= -75) return 2;
     if (widget.rssi >= -80) return 1;
     return 0;
   }
@@ -55,7 +55,7 @@ class _SignalStrengthWidgetState extends State<SignalStrengthWidget>
   Color get _signalColor {
     if (!widget.isInRange) return AppTheme.error;
     if (widget.rssi >= -60) return AppTheme.success;
-    if (widget.rssi >= -70) return AppTheme.warning;
+    if (widget.rssi >= -75) return AppTheme.warning;
     return AppTheme.error;
   }
 
@@ -145,7 +145,7 @@ class SignalIcon extends StatelessWidget {
     if (rssi >= -60) {
       color = AppTheme.success;
       icon = Icons.signal_wifi_4_bar;
-    } else if (rssi >= -70) {
+    } else if (rssi >= -75) {
       color = AppTheme.warning;
       icon = Icons.network_wifi_2_bar;
     } else {

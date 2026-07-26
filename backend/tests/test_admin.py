@@ -32,7 +32,10 @@ class TestStudentCRUD:
     def test_list_students(self, client, admin_headers):
         response = client.get("/admin/students", headers=admin_headers)
         assert response.status_code == 200
-        assert isinstance(response.json(), list)
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert isinstance(data["items"], list)
 
     def test_get_student_by_id(self, client, admin_headers, student_user):
         response = client.get(
@@ -76,7 +79,10 @@ class TestFacultyCRUD:
     def test_list_faculty(self, client, admin_headers):
         response = client.get("/admin/faculty", headers=admin_headers)
         assert response.status_code == 200
-        assert isinstance(response.json(), list)
+        data = response.json()
+        assert "items" in data
+        assert "total" in data
+        assert isinstance(data["items"], list)
 
     def test_create_faculty(self, client, admin_headers):
         response = client.post("/admin/faculty", json={

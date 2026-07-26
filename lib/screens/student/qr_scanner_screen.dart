@@ -1,12 +1,18 @@
 // ============================================================
-// SmartAttend — QR Scanner Screen (Student)
-// Fallback attendance via QR code when BLE unavailable
+// SmartAttend — QR Scanner Screen (Production v3)
+// Premium camera scanner with:
+//  - Animated laser line sweep
+//  - Haptic feedback on scan
+//  - Torch toggle with icon state
+//  - Success flash animation
+//  - Better error handling with retry
 // ============================================================
 
 import 'dart:convert';
 import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -21,14 +27,49 @@ class QrScannerScreen extends StatefulWidget {
   State<QrScannerScreen> createState() => _QrScannerScreenState();
 }
 
-class _QrScannerScreenState extends State<QrScannerScreen> {
+class _QrScannerScreenState extends State<QrScannerScreen>
+    with TickerProviderStateMixin {
   final MobileScannerController _scanCtrl = MobileScannerController();
   final AttendanceController _attendance = Get.find<AttendanceController>();
   bool _processing = false;
+  bool _torchOn = false;
   String? _error;
+
+  // Laser animation
+  late AnimationController _laserController;
+  late Animation<double> _laserAnim;
+
+  // Success flash
+  late AnimationController _flashController;
+  late Animation<double> _flashAnim;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _laserController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+
+    _laserAnim = CurvedAnimation(
+      parent: _laserController,
+      curve: Curves.easeInOut,
+    );
+
+    _flashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _flashAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _flashController, curve: Curves.easeOut),
+    );
+  }
 
   @override
   void dispose() {
+    _laserController.dispose();
+    _flashController.dispose();
     _scanCtrl.dispose();
     super.dispose();
   }
@@ -38,6 +79,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     final barcode = capture.barcodes.firstOrNull;
     if (barcode?.rawValue == null) return;
 
+    // Haptic + flash
+    HapticFeedback.mediumImpact();
+    _flashController.forward(from: 0.0);
+
     setState(() {
       _processing = true;
       _error = null;
@@ -46,8 +91,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     await _scanCtrl.stop();
 
     final qrToken = barcode!.rawValue!;
-
     int? sessionId;
+
     try {
       final parts = qrToken.split('.');
       if (parts.length == 3) {
@@ -88,48 +133,62 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       return;
     }
 
-    // Success — bypass BLE check by setting RSSI to 0 and navigate to verification screen
+    // Success — navigate to verification method screen
     _attendance.capturedRssi.value = 0;
-    _attendance.step.value = AttendanceStep.faceCapture;
+    _attendance.step.value = AttendanceStep.bleDone;
 
-    Get.offNamed(
-      AppConstants.routeAttendanceVerification,
-      arguments: {
-        'deep_link': true,
-        'session_id': sessionId,
-      },
-    );
+    Get.offNamed(AppConstants.routeVerificationMethod);
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    const frameSize = 260.0;
+    final frameTop = screenSize.height / 2 - frameSize / 2 - 40;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // ─── Camera ──────────────────────────────────────
+          // ─── Camera ────────────────────────────────────────
           MobileScanner(
             controller: _scanCtrl,
             onDetect: _onDetect,
           ),
 
-          // ─── Overlay ─────────────────────────────────────
-          CustomPaint(
-            size: MediaQuery.of(context).size,
-            painter: _ScannerOverlayPainter(),
+          // ─── Scanner overlay (dim + corners) ────────────────
+          AnimatedBuilder(
+            animation: _laserAnim,
+            builder: (_, __) => CustomPaint(
+              size: screenSize,
+              painter: _ScannerOverlayPainter(
+                laserProgress: _laserAnim.value,
+                showLaser: !_processing,
+                isSuccess: _processing && _error == null,
+              ),
+            ),
           ),
 
-          // ─── UI Overlays ─────────────────────────────────
+          // ─── Success flash ───────────────────────────────────
+          AnimatedBuilder(
+            animation: _flashAnim,
+            builder: (_, __) => Opacity(
+              opacity: _flashAnim.value * 0.3,
+              child: Container(color: AppTheme.success),
+            ),
+          ),
+
+          // ─── UI Overlays ─────────────────────────────────────
           SafeArea(
             child: Column(
               children: [
-                // Top bar
+                // ── Top bar ─────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                        icon: const Icon(Icons.close, color: Colors.white, size: 26),
                         onPressed: () => Get.back(),
                       ),
                       const Expanded(
@@ -139,82 +198,80 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.flash_on, color: Colors.white, size: 28),
-                        onPressed: () => _scanCtrl.toggleTorch(),
+                        icon: Icon(
+                          _torchOn ? Icons.flash_on : Icons.flash_off,
+                          color: _torchOn ? Colors.amber : Colors.white,
+                          size: 26,
+                        ),
+                        onPressed: () {
+                          setState(() => _torchOn = !_torchOn);
+                          _scanCtrl.toggleTorch();
+                        },
                       ),
                     ],
                   ),
                 ),
 
-                const Spacer(),
-
-                // Center label
-                const Text(
-                  'Point camera at the QR code\ndisplayed by your faculty',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    height: 1.5,
+                // ── Position label ──────────────────────────
+                const SizedBox(height: 20),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.qr_code_scanner_rounded, color: Colors.white70, size: 14),
+                      SizedBox(width: 6),
+                      Text(
+                        'Point at faculty\'s screen',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
 
-                const SizedBox(height: 60),
+                SizedBox(height: frameTop - 80),
 
-                // Error or processing
-                if (_processing)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 40),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.bgCard.withValues(alpha: 0.95),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppTheme.primary,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Text('Marking attendance...',
-                            style: TextStyle(color: AppTheme.textPrimary)),
-                      ],
-                    ),
-                  ),
+                // ── Spacer: scan frame area ─────────────────
+                const SizedBox(height: frameSize + 20),
 
-                if (_error != null && !_processing)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 40),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.error.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.error.withValues(alpha: 0.5)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _error!,
-                            style: const TextStyle(color: AppTheme.error, fontSize: 13),
-                          ),
+                const Spacer(),
+
+                // ── Status area ─────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      if (_processing && _error == null)
+                        _StatusCard(
+                          color: AppTheme.primary,
+                          icon: Icons.radar_rounded,
+                          text: 'Processing QR code...',
+                          isLoading: true,
                         ),
-                      ],
-                    ),
+                      if (_error != null && !_processing)
+                        _StatusCard(
+                          color: AppTheme.error,
+                          icon: Icons.error_outline_rounded,
+                          text: _error!,
+                          isLoading: false,
+                          onRetry: () async {
+                            setState(() => _error = null);
+                            await _scanCtrl.start();
+                          },
+                        ),
+                    ],
                   ),
+                ),
 
                 const SizedBox(height: 40),
               ],
@@ -226,11 +283,88 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 }
 
-// ─── Scanner Overlay Painter ──────────────────────────────
+// ─── Status Card ─────────────────────────────────────────────
+class _StatusCard extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String text;
+  final bool isLoading;
+  final VoidCallback? onRetry;
+
+  const _StatusCard({
+    required this.color,
+    required this.icon,
+    required this.text,
+    required this.isLoading,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          isLoading
+              ? SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
+                )
+              : Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onRetry,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Retry',
+                  style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Scanner Overlay Painter ──────────────────────────────────
 class _ScannerOverlayPainter extends CustomPainter {
+  final double laserProgress;
+  final bool showLaser;
+  final bool isSuccess;
+
+  const _ScannerOverlayPainter({
+    required this.laserProgress,
+    required this.showLaser,
+    required this.isSuccess,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
-    const cornerSize = 32.0;
+    const cornerSize = 30.0;
     const frameSize = 260.0;
     final centerX = size.width / 2;
     final centerY = size.height / 2;
@@ -240,22 +374,23 @@ class _ScannerOverlayPainter extends CustomPainter {
     final bottom = centerY + frameSize / 2 - 40;
 
     // Dim overlay
-    final dimPaint = Paint()..color = Colors.black.withValues(alpha: 0.6);
+    final dimPaint = Paint()..color = Colors.black.withValues(alpha: 0.65);
     canvas.drawPath(
       Path.combine(
         PathOperation.difference,
         Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
         Path()
           ..addRRect(RRect.fromLTRBR(
-            left, top, right, bottom, const Radius.circular(16))),
+              left, top, right, bottom, const Radius.circular(16))),
       ),
       dimPaint,
     );
-    // Corners only — no full frame border needed
 
+    // Corner brackets
+    final cornerColor = isSuccess ? AppTheme.success : AppTheme.primary;
     final p = Paint()
-      ..color = AppTheme.primary
-      ..strokeWidth = 4
+      ..color = cornerColor
+      ..strokeWidth = 3.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
@@ -269,11 +404,40 @@ class _ScannerOverlayPainter extends CustomPainter {
     canvas.drawLine(Offset(left, bottom - cornerSize), Offset(left, bottom), p);
     canvas.drawLine(Offset(left, bottom), Offset(left + cornerSize, bottom), p);
     // BR
-    canvas.drawLine(
-        Offset(right - cornerSize, bottom), Offset(right, bottom), p);
+    canvas.drawLine(Offset(right - cornerSize, bottom), Offset(right, bottom), p);
     canvas.drawLine(Offset(right, bottom - cornerSize), Offset(right, bottom), p);
+
+    // Animated laser line
+    if (showLaser) {
+      final laserY = top + (bottom - top) * laserProgress;
+      final laserPaint = Paint()
+        ..shader = LinearGradient(
+          colors: [
+            Colors.transparent,
+            AppTheme.primary.withValues(alpha: 0.8),
+            AppTheme.primary,
+            AppTheme.primary.withValues(alpha: 0.8),
+            Colors.transparent,
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ).createShader(Rect.fromLTRB(left, laserY, right, laserY + 2))
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawLine(Offset(left + 8, laserY), Offset(right - 8, laserY), laserPaint);
+
+      // Laser glow
+      final glowPaint = Paint()
+        ..color = AppTheme.primary.withValues(alpha: 0.12)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      canvas.drawRect(Rect.fromLTRB(left + 8, laserY - 4, right - 8, laserY + 4), glowPaint);
+    }
   }
 
   @override
-  bool shouldRepaint(_) => false;
+  bool shouldRepaint(_ScannerOverlayPainter old) =>
+      old.laserProgress != laserProgress ||
+      old.showLaser != showLaser ||
+      old.isSuccess != isSuccess;
 }

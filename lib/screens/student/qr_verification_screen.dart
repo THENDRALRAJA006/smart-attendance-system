@@ -1,31 +1,24 @@
 // ============================================================
-// SmartAttend — QR Verification Screen (v3)
-// Two methods: Live QR Scanner + Upload QR Image
-// After QR is validated → navigate to Face Verification
-//
-// v3: alreadyMarked guard at screen entry,
-//     duplicate-attendance dialog improvements,
-//     tab state management fix,
-//     post-upload session info preview
+// SmartAttend — QR Verification Screen (Enterprise v2)
+// Premium animated scanner → session preview → auto-advance
+// QR is now mandatory step AFTER BLE
+// v2: Removed tab UI, direct camera scanner, animated overlay
 // ============================================================
 
-import 'dart:convert';
-import 'dart:developer' as dev;
-import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../controllers/attendance_controller.dart';
-import '../../core/constants/app_constants.dart';
+// AppConstants removed — navigation handled inside markAttendanceQr()
 import '../../core/theme/app_theme.dart';
-import '../../widgets/glassmorphism_card.dart';
-import '../../widgets/gradient_button.dart';
+import '../../widgets/biometric_progress_bar.dart';
+import '../../widgets/qr_scanner_overlay.dart';
 
-// ─── Local QR Decoder (image bytes) ─────────────────────────
-// Uses mobile_scanner's analyzeImage for offline decoding
 class QrVerificationScreen extends StatefulWidget {
   const QrVerificationScreen({super.key});
 
@@ -34,302 +27,200 @@ class QrVerificationScreen extends StatefulWidget {
 }
 
 class _QrVerificationScreenState extends State<QrVerificationScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final AttendanceController _attendance = Get.find<AttendanceController>();
-  final MobileScannerController _scanCtrl = MobileScannerController();
   final ImagePicker _picker = ImagePicker();
 
-  // ─── Tabs ─────────────────────────────────────────────────
-  late TabController _tabController;
+  // ─── Scanner controller created in initState, not as a field ─
+  // Creating it as a field causes "already running" when the screen
+  // is rebuilt or returned to from another route.
+  MobileScannerController? _scanCtrl;
 
-  // ─── State ────────────────────────────────────────────────
   bool _processing = false;
-  String? _error;
-  String? _uploadedImagePath;
-  bool _scannerActive = true;
+  bool _scanSuccess = false;
+  bool _scanError = false;
+  bool _torchOn = false;
+  String? _errorMessage;
 
-  // ─── Decoded session info (shown after upload) ────────────
-  String? _decodedSubjectName;
+  // Session info (shown after scan)
+  Map<String, dynamic>? _sessionPreview;
+
+  late AnimationController _entryController;
+  late AnimationController _successController;
+  late Animation<double> _entryFade;
+  late Animation<Offset> _entrySlide;
+  late Animation<double> _successScale;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(_onTabChanged);
+    WidgetsBinding.instance.addObserver(this);
 
-    // Check alreadyMarked at entry
+    // Create scanner controller fresh every time screen is opened
+    _scanCtrl = MobileScannerController(
+      formats: [BarcodeFormat.qrCode],
+      autoStart: true,
+    );
+
+    _entryController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _successController = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+
+    _entryFade = CurvedAnimation(parent: _entryController, curve: Curves.easeOut);
+    _entrySlide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _entryController, curve: Curves.easeOut));
+    _successScale = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(CurvedAnimation(parent: _successController, curve: Curves.elasticOut));
+
+    _entryController.forward();
+
+    // Duplicate check at entry
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_attendance.alreadyMarked) {
-        _showAlreadyMarkedDialog();
-      }
+      if (_attendance.alreadyMarked) _showAlreadyMarkedDialog();
     });
   }
 
-  void _onTabChanged() {
-    if (!mounted) return;
-    if (_tabController.index == 0 && !_scannerActive) {
-      _scanCtrl.start();
-      setState(() => _scannerActive = true);
-    } else if (_tabController.index == 1 && _scannerActive) {
-      _scanCtrl.stop();
-      setState(() => _scannerActive = false);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (_scanCtrl == null) return;
+    if (state == AppLifecycleState.paused) {
+      _scanCtrl!.stop();
+    } else if (state == AppLifecycleState.resumed && !_processing && !_scanSuccess) {
+      _scanCtrl!.start();
     }
-    setState(() {}); // Rebuild for torch icon
   }
 
   @override
   void dispose() {
-    _tabController.removeListener(_onTabChanged);
-    _scanCtrl.dispose();
-    _tabController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _entryController.dispose();
+    _successController.dispose();
+    // Stop before dispose to avoid "already running" on re-entry
+    _scanCtrl?.stop();
+    _scanCtrl?.dispose();
+    _scanCtrl = null;
     super.dispose();
   }
 
-  // ─── Handle Scanned Barcode ──────────────────────────────
+  // ─── Process Scanned QR ────────────────────────────────────
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_processing) return;
+    if (_processing || _scanSuccess) return;
     final barcode = capture.barcodes.firstOrNull;
     if (barcode?.rawValue == null) return;
-
+    HapticFeedback.mediumImpact();
     await _processQrToken(barcode!.rawValue!);
   }
 
-  // ─── Upload QR Image ─────────────────────────────────────
-  Future<void> _uploadQrImage(ImageSource source) async {
+  // ─── Core QR Processing ────────────────────────────────────
+  Future<void> _processQrToken(String token) async {
     if (_processing) return;
+    setState(() { _processing = true; _errorMessage = null; });
 
-    try {
-      final XFile? picked = await _picker.pickImage(
-        source: source,
-        imageQuality: 100,
-      );
-      if (picked == null) return;
+    await _scanCtrl?.stop();
 
-      setState(() {
-        _processing = true;
-        _error = null;
-        _uploadedImagePath = picked.path;
-        _decodedSubjectName = null;
-      });
+    // Optimistic success flash
+    setState(() => _scanSuccess = true);
+    _successController.forward(from: 0);
+    HapticFeedback.heavyImpact();
 
-      dev.log('[QR_UPLOAD] Analyzing image: ${picked.path}');
-
-      // Use MobileScanner's analyzeImage to decode QR from file
-      final BarcodeCapture? result =
-          await _scanCtrl.analyzeImage(picked.path);
-
-      if (result == null || result.barcodes.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _processing = false;
-            _error = 'No QR code found in the selected image. Please try a clearer photo.';
-          });
-        }
-        return;
-      }
-
-      final rawValue = result.barcodes.first.rawValue;
-      if (rawValue == null) {
-        if (mounted) {
-          setState(() {
-            _processing = false;
-            _error = 'QR code could not be read. Please try again.';
-          });
-        }
-        return;
-      }
-
-      dev.log('[QR_UPLOAD] Decoded QR: $rawValue');
-      await _processQrToken(rawValue);
-    } catch (e) {
-      dev.log('[QR_UPLOAD] Error: $e');
-      if (mounted) {
-        setState(() {
-          _processing = false;
-          _error = 'Failed to read image: ${e.toString()}';
-        });
-      }
-    }
-  }
-
-  // ─── Process QR Token ────────────────────────────────────
-  Future<void> _processQrToken(String qrToken) async {
-    if (!_processing) {
-      setState(() {
-        _processing = true;
-        _error = null;
-      });
-    }
-
-    await _scanCtrl.stop();
-
-    // Local decode check
-    bool locallyValid = _isSmartAttendQr(qrToken);
-    if (!locallyValid) {
-      if (mounted) {
-        setState(() {
-          _error = 'Invalid QR code. Please scan a valid SmartAttend attendance QR.';
-          _processing = false;
-          _uploadedImagePath = null;
-          _decodedSubjectName = null;
-        });
-      }
-      if (_tabController.index == 0) await _scanCtrl.start();
-      return;
-    }
-
-    // Validate with backend
-    final success = await _attendance.validateQrToken(qrToken);
+    final ok = await _attendance.validateQrToken(token);
 
     if (!mounted) return;
 
-    if (success) {
-      // Show decoded info briefly then navigate
+    if (ok) {
       setState(() {
-        _decodedSubjectName = _attendance.deepLinkSessionSubject.value;
+        _sessionPreview = {
+          'subject_name':   _attendance.deepLinkSessionSubject.value,
+          'classroom_name': _attendance.deepLinkSessionClassroom.value,
+          'session_id':     _attendance.deepLinkSessionId.value,
+        };
+      });
+
+      // Show preview briefly then mark attendance
+      // markAttendanceQr() handles navigation to result screen internally
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!mounted) return;
+
+      await _attendance.markAttendanceQr();
+      // Do NOT call Get.offAllNamed here — markAttendanceQr() does it
+    } else {
+      // Reset for retry
+      setState(() {
+        _scanSuccess = false;
+        _scanError = true;
+        _errorMessage = _attendance.error.value;
         _processing = false;
       });
 
-      // Brief pause to show decoded session info
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
+      HapticFeedback.heavyImpact();
 
-      // Navigate to face verification
-      Get.offNamed(
-        AppConstants.routeAttendanceVerification,
-        arguments: {'from_qr': true},
-      );
-    } else {
+      await Future.delayed(const Duration(seconds: 2));
       if (mounted) {
-        setState(() {
-          _error = _attendance.error.value.isNotEmpty
-              ? _attendance.error.value
-              : 'QR validation failed. Please try again.';
-          _processing = false;
-          _uploadedImagePath = null;
-          _decodedSubjectName = null;
-        });
-
-        if (_attendance.result.value == AttendanceResult.alreadyMarked ||
-            _attendance.hasDuplicateError.value) {
-          _showAlreadyMarkedDialog();
-          return;
-        }
-
-        if (_tabController.index == 0) await _scanCtrl.start();
+        setState(() { _scanError = false; });
+        await _scanCtrl?.start();
       }
     }
   }
 
-  // ─── Check if QR is SmartAttend format ───────────────────
-  bool _isSmartAttendQr(String token) {
+  // ─── Upload QR Image ───────────────────────────────────────
+  Future<void> _uploadQrImage() async {
     try {
-      final parts = token.split('.');
-      if (parts.length != 3) return false;
-      final payload = parts[1];
-      final normalized = base64Url.normalize(payload);
-      final decodedStr = utf8.decode(base64Url.decode(normalized));
-      final payloadMap = json.decode(decodedStr) as Map<String, dynamic>;
-      return payloadMap['type'] == 'qr_attendance' &&
-          payloadMap['session_id'] != null;
-    } catch (_) {
-      return false;
+      final picked = await _picker.pickImage(source: ImageSource.gallery);
+      if (picked == null) return;
+
+      final imagePath = picked.path;
+      // Use a dedicated temporary controller for gallery image analysis
+      MobileScannerController? tempCtrl;
+      try {
+        tempCtrl = MobileScannerController();
+        final result = await tempCtrl.analyzeImage(imagePath);
+        if (result == null || result.barcodes.isEmpty) {
+          if (mounted) _showError('No QR code found in the selected image. Please try another image.');
+          return;
+        }
+        final rawVal = result.barcodes.first.rawValue;
+        if (rawVal == null) {
+          if (mounted) _showError('Could not read QR code from image.');
+          return;
+        }
+        await _processQrToken(rawVal);
+      } finally {
+        await tempCtrl?.stop();
+        tempCtrl?.dispose();
+      }
+    } catch (e) {
+      _showError('Could not load image: $e');
     }
+  }
+
+  void _showError(String msg) {
+    setState(() { _errorMessage = msg; });
+    HapticFeedback.heavyImpact();
+  }
+
+  void _toggleTorch() {
+    _scanCtrl?.toggleTorch();
+    setState(() => _torchOn = !_torchOn);
+    HapticFeedback.lightImpact();
   }
 
   void _showAlreadyMarkedDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (_) => AlertDialog(
         backgroundColor: AppTheme.bgCard,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 26),
-            SizedBox(width: 10),
-            Text('Already Marked',
-                style: TextStyle(color: AppTheme.textPrimary, fontSize: 18)),
-          ],
-        ),
+        title: const Text('Already Marked', style: TextStyle(color: AppTheme.textPrimary)),
         content: const Text(
-          'You have already marked attendance for this session. No further action needed.',
-          style: TextStyle(color: AppTheme.textSecondary, height: 1.5),
+          'Your attendance has already been marked for this session.',
+          style: TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Get.back(); // close dialog
-              Get.until((r) => r.settings.name == AppConstants.routeStudentDashboard);
-            },
-            child: const Text('Go to Dashboard',
-                style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w700)),
+            onPressed: () { Get.back(); Get.back(); },
+            child: const Text('OK', style: TextStyle(color: AppTheme.primary)),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showUploadOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.bgCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.textHint,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Upload QR Image',
-              style: TextStyle(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Select the source for your QR code image',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 24),
-            _UploadOptionTile(
-              id: 'gallery_option',
-              icon: Icons.photo_library_rounded,
-              color: AppTheme.primary,
-              title: 'Gallery / Photos',
-              subtitle: 'PNG, JPG, JPEG supported',
-              onTap: () {
-                Get.back();
-                _uploadQrImage(ImageSource.gallery);
-              },
-            ),
-            const SizedBox(height: 12),
-            _UploadOptionTile(
-              id: 'files_option',
-              icon: Icons.folder_rounded,
-              color: AppTheme.accent,
-              title: 'Files',
-              subtitle: 'Browse your device storage',
-              onTap: () {
-                Get.back();
-                _uploadQrImage(ImageSource.gallery); // Files also uses gallery picker
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
       ),
     );
   }
@@ -337,609 +228,296 @@ class _QrVerificationScreenState extends State<QrVerificationScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // ─── App Bar ─────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 12, 24, 0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                          color: AppTheme.textPrimary, size: 20),
-                      onPressed: () => Get.back(),
-                    ),
-                    const Expanded(
-                      child: Text(
-                        'QR Verification',
-                        style: TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    // Torch toggle (only on scanner tab)
-                    if (_tabController.index == 0)
-                      IconButton(
-                        icon: const Icon(Icons.flash_on_rounded,
-                            color: AppTheme.textSecondary, size: 22),
-                        onPressed: () => _scanCtrl.toggleTorch(),
-                      ),
-                  ],
-                ),
-              ),
-
-              // ─── Session Info banner (from active session) ─
-              Obx(() {
-                final subject = _attendance.activeSession.value?.subjectName
-                    ?? _attendance.deepLinkSessionSubject.value;
-                if (subject.isEmpty) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: AppTheme.primary.withValues(alpha: 0.2)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.book_rounded,
-                            color: AppTheme.primary, size: 14),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            subject,
-                            style: const TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppTheme.success.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'ACTIVE',
-                            style: TextStyle(
-                              color: AppTheme.success,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-
-              const SizedBox(height: 8),
-
-              // ─── Tab Bar ──────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgCard,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                        color: AppTheme.primary.withValues(alpha: 0.15)),
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    dividerColor: Colors.transparent,
-                    indicator: BoxDecoration(
-                      gradient: AppTheme.primaryGradient,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primary.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    labelColor: Colors.white,
-                    unselectedLabelColor: AppTheme.textSecondary,
-                    labelStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                    tabs: const [
-                      Tab(
-                        icon: Icon(Icons.qr_code_scanner_rounded, size: 18),
-                        text: 'Live Scanner',
-                      ),
-                      Tab(
-                        icon: Icon(Icons.upload_rounded, size: 18),
-                        text: 'Upload Image',
-                      ),
-                    ],
-                    onTap: (index) {
-                      if (mounted) setState(() {});
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // ─── Tab Content ──────────────────────────────
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _buildLiveScannerTab(),
-                    _buildUploadTab(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─── Live Scanner Tab ────────────────────────────────────
-  Widget _buildLiveScannerTab() {
-    return Stack(
-      children: [
-        Column(
-          children: [
-            // Camera view
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      MobileScanner(
-                        controller: _scanCtrl,
-                        onDetect: _onDetect,
-                      ),
-                      // QR frame overlay
-                      CustomPaint(
-                        painter: _QrFramePainter(),
-                      ),
-                      // Processing overlay
-                      if (_processing)
-                        Container(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          child: const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                CircularProgressIndicator(
-                                    color: AppTheme.primary),
-                                SizedBox(height: 16),
-                                Text(
-                                  'Validating QR...',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Instruction
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                'Point your camera at the QR code displayed by your faculty',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Error
-            if (_error != null && !_processing)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _ErrorBanner(message: _error!),
-              ),
-
-            const SizedBox(height: 16),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ─── Upload Tab ──────────────────────────────────────────
-  Widget _buildUploadTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        children: [
-          // Upload Area
-          GestureDetector(
-            onTap: _processing ? null : _showUploadOptions,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: 220,
-              decoration: BoxDecoration(
-                color: _uploadedImagePath != null
-                    ? Colors.transparent
-                    : AppTheme.bgCard.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _uploadedImagePath != null
-                      ? AppTheme.success.withValues(alpha: 0.4)
-                      : AppTheme.primary.withValues(alpha: 0.3),
-                  width: 2,
-                  strokeAlign: BorderSide.strokeAlignInside,
-                ),
-              ),
-              child: _uploadedImagePath != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.file(
-                            File(_uploadedImagePath!),
-                            fit: BoxFit.cover,
-                          ),
-                          if (_processing)
-                            Container(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              child: const Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    CircularProgressIndicator(
-                                        color: AppTheme.primary),
-                                    SizedBox(height: 12),
-                                    Text(
-                                      'Reading QR code...',
-                                      style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w600),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          // Decoded success overlay
-                          if (!_processing && _decodedSubjectName != null)
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.success.withValues(alpha: 0.9),
-                                  borderRadius: const BorderRadius.vertical(
-                                      bottom: Radius.circular(18)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.check_circle_rounded,
-                                        color: Colors.white, size: 16),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'QR Decoded: $_decodedSubjectName',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            gradient: AppTheme.primaryGradient,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primary.withValues(alpha: 0.3),
-                                blurRadius: 16,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(Icons.upload_rounded,
-                              color: Colors.white, size: 34),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Tap to Upload QR Image',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'PNG • JPG • JPEG',
-                          style: TextStyle(
-                            color: AppTheme.textHint,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Error
-          if (_error != null && !_processing)
-            _ErrorBanner(message: _error!),
-
-          const SizedBox(height: 20),
-
-          // Upload Button
-          GradientButton(
-            id: 'upload_qr_button',
-            text: _uploadedImagePath != null
-                ? 'Choose Different Image'
-                : 'Upload QR Image',
-            icon: Icons.upload_file_rounded,
-            isLoading: _processing,
-            onPressed: _processing ? null : _showUploadOptions,
-          ),
-
-          const SizedBox(height: 12),
-
-          // Instructions Card
-          GlassmorphismCard(
-            padding: const EdgeInsets.all(16),
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _entryFade,
+          child: SlideTransition(
+            position: _entrySlide,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppTheme.accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.info_outline_rounded,
-                          color: AppTheme.accent, size: 16),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'How to use QR upload',
-                      style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ...[
-                  '📸 Screenshot the QR shown by your faculty',
-                  '📁 Upload it from your gallery or files',
-                  '🔍 The app will automatically detect and decode it',
-                  '🧑‍💻 After QR is validated, complete face verification',
-                  '✅ Attendance will be marked after face match',
-                ].map((tip) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        tip,
-                        style: const TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 12.5,
-                          height: 1.4,
-                        ),
-                      ),
-                    )),
+                _buildHeader(),
+                _buildProgressBar(),
+                Expanded(child: _buildScannerSection()),
+                if (!_scanSuccess) _buildFooter(),
               ],
             ),
           ),
-
-          const SizedBox(height: 24),
-        ],
+        ),
       ),
     );
   }
-}
 
-// ─── Error Banner ─────────────────────────────────────────────
-class _ErrorBanner extends StatelessWidget {
-  final String message;
-  const _ErrorBanner({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.error.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.error.withValues(alpha: 0.4)),
-      ),
+      padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
+      color: Colors.black,
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: AppTheme.error, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                color: AppTheme.error,
-                fontSize: 12.5,
-                height: 1.4,
-              ),
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 20),
+            onPressed: () => Get.back(),
+          ),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Scan QR Code',
+                  style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 20),
+                ),
+                Text(
+                  'Point at the session QR code',
+                  style: TextStyle(color: AppTheme.textHint, fontSize: 12),
+                ),
+              ],
             ),
+          ),
+          // Torch toggle
+          IconButton(
+            icon: Icon(
+              _torchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+              color: _torchOn ? AppTheme.warning : AppTheme.textHint,
+              size: 22,
+            ),
+            onPressed: _toggleTorch,
+          ),
+          // Upload option
+          IconButton(
+            icon: const Icon(Icons.image_rounded, color: AppTheme.textHint, size: 22),
+            onPressed: _uploadQrImage,
+            tooltip: 'Upload QR Image',
           ),
         ],
       ),
     );
   }
-}
 
-// ─── Upload Option Tile ───────────────────────────────────────
-class _UploadOptionTile extends StatelessWidget {
-  final String id;
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  Widget _buildProgressBar() {
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+      child: Obx(() => BiometricProgressBar(
+            // QR flow: BLE ✓ → QR Scan → Done  (no Liveness, no Face)
+            flowMode: AttendanceFlowMode.qr,
+            currentStep: _scanSuccess ? BiometricStep.done : BiometricStep.qr,
+            bleVerified: _attendance.bleVerified.value,
+            qrVerified: _scanSuccess,
+          )),
+    );
+  }
 
-  const _UploadOptionTile({
-    required this.id,
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
+  Widget _buildScannerSection() {
+    return Stack(
+      children: [
+        // Camera — only show scanner if controller is ready
+        if (_scanCtrl != null)
+          MobileScanner(
+            controller: _scanCtrl!,
+            onDetect: _onDetect,
+          )
+        else
+          const Center(child: CircularProgressIndicator(color: AppTheme.primary)),
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      key: Key(id),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+        // Dark overlay with transparent center
+        Positioned.fill(
+          child: _QrDarkOverlay(),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+
+        // QR frame overlay
+        Center(
+          child: QrScannerOverlay(
+            isScanning: !_scanSuccess && !_scanError,
+            isSuccess: _scanSuccess,
+            isError: _scanError,
+            size: MediaQuery.of(context).size.width * 0.72,
+          ),
+        ),
+
+        // Instructions text
+        if (!_scanSuccess && !_scanError)
+          Positioned(
+            bottom: 32,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3), width: 1),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.qr_code_scanner, color: AppTheme.primary, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'Align QR code within the frame',
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
                     ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 12,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+        // Success preview card
+        if (_scanSuccess && _sessionPreview != null)
+          Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            child: ScaleTransition(
+              scale: _successScale,
+              child: _buildSessionPreviewCard(),
+            ),
+          ),
+
+        // Error message
+        if (_errorMessage != null && !_scanSuccess)
+          Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: AppTheme.errorCard(0.4),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: AppTheme.error, fontSize: 13),
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded,
-                color: color.withValues(alpha: 0.5), size: 14),
-          ],
-        ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSessionPreviewCard() {
+    final session = _sessionPreview!;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: AppTheme.successCard(0.5),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.check_circle, color: AppTheme.success, size: 22),
+              SizedBox(width: 10),
+              Text(
+                'QR Verified!',
+                style: TextStyle(color: AppTheme.success, fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: AppTheme.success, height: 1, thickness: 0.3),
+          const SizedBox(height: 12),
+          _infoRow(Icons.book_rounded, 'Subject', session['subject_name']?.toString() ?? '—'),
+          const SizedBox(height: 8),
+          _infoRow(Icons.meeting_room_rounded, 'Classroom', session['classroom_name']?.toString() ?? '—'),
+          const SizedBox(height: 12),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(width: 8, height: 8, child: CircularProgressIndicator(color: AppTheme.success, strokeWidth: 2)),
+              SizedBox(width: 8),
+              Text(
+                'Marking attendance...',
+                style: TextStyle(color: AppTheme.success, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: AppTheme.textHint, size: 14),
+        const SizedBox(width: 8),
+        Text('$label: ', style: const TextStyle(color: AppTheme.textHint, fontSize: 12)),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 12),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      child: Obx(() => _attendance.isLoading.value
+          ? const LinearProgressIndicator(color: AppTheme.primary)
+          : OutlinedButton.icon(
+              onPressed: _uploadQrImage,
+              icon: const Icon(Icons.image_rounded, size: 18),
+              label: const Text('Upload QR Image Instead'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.textSecondary,
+                side: BorderSide(color: AppTheme.textHint.withValues(alpha: 0.4)),
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            )),
     );
   }
 }
 
-// ─── QR Frame Painter ─────────────────────────────────────────
-class _QrFramePainter extends CustomPainter {
+// ─── QR Dark Vignette Overlay ────────────────────────────────
+class _QrDarkOverlay extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final screenW = MediaQuery.of(context).size.width;
+    final frameSize = screenW * 0.72;
+    final cx = screenW / 2;
+    final cy = MediaQuery.of(context).size.height / 2;
+
+    return CustomPaint(
+      painter: _VignettePainter(centerX: cx, centerY: cy, frameSize: frameSize),
+    );
+  }
+}
+
+class _VignettePainter extends CustomPainter {
+  final double centerX, centerY, frameSize;
+  const _VignettePainter({required this.centerX, required this.centerY, required this.frameSize});
+
   @override
   void paint(Canvas canvas, Size size) {
-    const cornerSize = 28.0;
-    const frameSize = 230.0;
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final l = cx - frameSize / 2;
-    final t = cy - frameSize / 2;
-    final r = cx + frameSize / 2;
-    final b = cy + frameSize / 2;
-
-    // Dim overlay
-    final dimPaint = Paint()..color = Colors.black.withValues(alpha: 0.55);
-    canvas.drawPath(
-      Path.combine(
-        PathOperation.difference,
-        Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
-        Path()
-          ..addRRect(RRect.fromLTRBR(l, t, r, b, const Radius.circular(16))),
-      ),
-      dimPaint,
+    final paint = Paint()..color = Colors.black.withValues(alpha: 0.55);
+    final fullRect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final holeRect = Rect.fromCenter(
+      center: Offset(centerX, centerY),
+      width: frameSize,
+      height: frameSize,
     );
 
-    final p = Paint()
-      ..color = AppTheme.primary
-      ..strokeWidth = 3.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    final path = Path()
+      ..addRect(fullRect)
+      ..addRRect(RRect.fromRectAndRadius(holeRect, const Radius.circular(16)));
 
-    // TL
-    canvas.drawLine(Offset(l, t + cornerSize), Offset(l, t), p);
-    canvas.drawLine(Offset(l, t), Offset(l + cornerSize, t), p);
-    // TR
-    canvas.drawLine(Offset(r - cornerSize, t), Offset(r, t), p);
-    canvas.drawLine(Offset(r, t), Offset(r, t + cornerSize), p);
-    // BL
-    canvas.drawLine(Offset(l, b - cornerSize), Offset(l, b), p);
-    canvas.drawLine(Offset(l, b), Offset(l + cornerSize, b), p);
-    // BR
-    canvas.drawLine(Offset(r - cornerSize, b), Offset(r, b), p);
-    canvas.drawLine(Offset(r, b - cornerSize), Offset(r, b), p);
+    path.fillType = PathFillType.evenOdd;
+    canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(_) => false;
+  bool shouldRepaint(_VignettePainter old) => false;
 }

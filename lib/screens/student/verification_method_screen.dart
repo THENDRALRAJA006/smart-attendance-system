@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'dart:developer' as dev;
 
 import '../../controllers/attendance_controller.dart';
 import '../../core/constants/app_constants.dart';
@@ -200,9 +201,18 @@ class VerificationMethodScreen extends StatelessWidget {
                           ),
                           borderColor: AppTheme.primary.withValues(alpha: 0.4),
                           onTap: () {
+                            dev.log(
+                              '[METHOD_SELECT] Face Verification tapped. '
+                              'BLE=${attendance.bleVerified.value} '
+                              'Session=${attendance.deepLinkSessionId.value}',
+                              name: 'MethodSelect',
+                            );
                             attendance.verificationMethod.value =
                                 VerificationMethod.face;
-                            Get.toNamed(AppConstants.routeAttendanceVerification);
+                            // ── Face flow: BLE → Liveness → Face Match ──
+                            // Must go through Liveness before Face camera.
+                            // Liveness screen navigates to routeAttendanceVerification on pass.
+                            Get.toNamed(AppConstants.routeLivenessChallenge);
                           },
                         ),
 

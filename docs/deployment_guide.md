@@ -70,7 +70,7 @@ APP_BASE_URL=https://smartattend.app
 ALLOWED_ORIGINS=http://localhost:3000,https://smartattend.app
 
 # BLE
-BLE_RSSI_THRESHOLD=-70
+BLE_RSSI_THRESHOLD=-75
 ```
 
 ### Start Backend
@@ -213,7 +213,7 @@ void loop() {}
 Register each beacon in the Admin dashboard:
 ```
 POST /admin/ble-beacons
-{ "classroom_id": 1, "beacon_uuid": "FA-CE-B0-0C-12-34", "rssi_threshold": -70 }
+{ "classroom_id": 1, "beacon_uuid": "FA-CE-B0-0C-12-34", "rssi_threshold": -75 }
 ```
 
 ---
