@@ -472,8 +472,8 @@ class _WelcomeHero extends StatelessWidget {
       ),
       child: Obx(() {
         final faculty = auth.currentFaculty.value;
-        final name    = faculty?.name ?? 'Teacher';
-        final dept    = faculty?.department ?? '';
+        final name    = faculty?.name ?? (auth.role.value == 'faculty' ? 'Mrs. Starlin M.A' : 'Teacher');
+        final dept    = (faculty?.department != null && faculty!.department!.isNotEmpty) ? faculty.department! : 'AI&ML';
         return Row(children: [
           // Avatar
           Container(

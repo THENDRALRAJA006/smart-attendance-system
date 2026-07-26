@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/erp_controller.dart';
+import '../../controllers/auth_controller.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/timetable_models.dart';
@@ -92,6 +93,11 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen>
               )
             : null,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline_rounded, color: AppTheme.primary, size: 24),
+            tooltip: 'Add Slot',
+            onPressed: () => _showAddSlotDialog(context),
+          ),
           GestureDetector(
             onTap: _startAttendanceWithAutoFill,
             child: Container(
@@ -111,6 +117,12 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen>
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddSlotDialog(context),
+        backgroundColor: AppTheme.primary,
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: const Text('Add Class', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: Column(
@@ -170,6 +182,132 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen>
             ],
           ),
       ),
+    );
+  }
+
+  void _showAddSlotDialog(BuildContext context) {
+    final depts = _ctrl.departments;
+    final subjects = _ctrl.subjects;
+    final periodTimings = _ctrl.periodTimings;
+    final classrooms = _ctrl.classrooms;
+
+    String selectedDay = 'Monday';
+    int? selectedDeptId = depts.isNotEmpty ? depts.first.id : 7;
+    int selectedYear = 3;
+    String selectedSection = 'C';
+    int? selectedPeriodId = periodTimings.isNotEmpty ? periodTimings.first.id : 1;
+    int? selectedSubjectId = subjects.isNotEmpty ? subjects.first.id : null;
+    int? selectedClassroomId = classrooms.isNotEmpty ? classrooms.first.id : null;
+    String classType = 'Lecture';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.bgCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                top: 24, left: 24, right: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Add Timetable Class Slot', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Day of Week
+                    DropdownButtonFormField<String>(
+                      value: selectedDay,
+                      decoration: const InputDecoration(labelText: 'Day of Week', border: OutlineInputBorder()),
+                      items: _days.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                      onChanged: (val) => setModalState(() => selectedDay = val!),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Period Timing
+                    if (periodTimings.isNotEmpty)
+                      DropdownButtonFormField<int>(
+                        value: selectedPeriodId,
+                        decoration: const InputDecoration(labelText: 'Period Timing', border: OutlineInputBorder()),
+                        items: periodTimings.map((p) => DropdownMenuItem(value: p.id, child: Text('${p.label} (${p.startTime} - ${p.endTime})'))).toList(),
+                        onChanged: (val) => setModalState(() => selectedPeriodId = val),
+                      ),
+                    const SizedBox(height: 12),
+
+                    // Subject
+                    if (subjects.isNotEmpty)
+                      DropdownButtonFormField<int>(
+                        value: selectedSubjectId,
+                        decoration: const InputDecoration(labelText: 'Subject', border: OutlineInputBorder()),
+                        items: subjects.map((s) => DropdownMenuItem(value: s.id, child: Text('${s.subjectName} (${s.subjectCode ?? ''})'))).toList(),
+                        onChanged: (val) => setModalState(() => selectedSubjectId = val),
+                      ),
+                    const SizedBox(height: 12),
+
+                    // Classroom
+                    if (classrooms.isNotEmpty)
+                      DropdownButtonFormField<int>(
+                        value: selectedClassroomId,
+                        decoration: const InputDecoration(labelText: 'Classroom / Venue', border: OutlineInputBorder()),
+                        items: classrooms.map((c) => DropdownMenuItem(value: c.id, child: Text(c.roomName))).toList(),
+                        onChanged: (val) => setModalState(() => selectedClassroomId = val),
+                      ),
+                    const SizedBox(height: 20),
+
+                    // Submit Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.add_circle_outline),
+                        label: const Text('Add Slot to Timetable', style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () async {
+                          if (selectedPeriodId == null) return;
+                          final ok = await _ctrl.saveSlot(
+                            deptId: selectedDeptId ?? 7,
+                            year: selectedYear,
+                            section: selectedSection,
+                            dayOfWeek: selectedDay,
+                            periodTimingId: selectedPeriodId!,
+                            subjectId: selectedSubjectId,
+                            facultyId: Get.find<AuthController>().currentFaculty.value?.id,
+                            classroomId: selectedClassroomId,
+                            classType: classType,
+                          );
+                          Navigator.of(context).pop();
+                          if (ok) {
+                            await _ctrl.fetchTeacherTimetable();
+                            Get.snackbar('Slot Added', 'Timetable slot added successfully', backgroundColor: AppTheme.success, colorText: Colors.white);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

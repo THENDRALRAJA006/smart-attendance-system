@@ -947,3 +947,36 @@ async def change_password(
         "success": True,
         "message": "Password changed successfully.",
     }
+
+
+# ─── GET /auth/me ──────────────────────────────────────────
+@router.get("/me", summary="Get current user profile")
+async def get_me(
+    current_user_and_role=Depends(get_current_user_any_role),
+    db: Session = Depends(get_db),
+):
+    """Return authenticated user profile for student, faculty, or admin."""
+    user, role = current_user_and_role
+    if role == "student":
+        return {"role": "student", "user": _make_student_payload(user)}
+    elif role == "faculty":
+        assigned_subjects = (
+            db.query(Subject)
+            .join(FacultySubject, FacultySubject.subject_id == Subject.id)
+            .filter(FacultySubject.faculty_id == user.id)
+            .all()
+        )
+        subjects_list = [
+            {
+                "id":           s.id,
+                "subject_name": s.subject_name,
+                "subject_code": s.subject_code,
+                "department":   s.department,
+                "faculty_id":   s.faculty_id,
+            }
+            for s in assigned_subjects
+        ]
+        return {"role": "faculty", "user": _make_faculty_payload(user, subjects_list)}
+    elif role == "admin":
+        return {"role": "admin", "user": {"id": user.id, "name": user.name, "email": user.email}}
+    raise HTTPException(status_code=400, detail="Unknown role")

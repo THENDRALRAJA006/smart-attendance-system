@@ -370,19 +370,33 @@ class AuthController extends GetxController {
 
     if (savedRole == 'student' && userData != null) {
       currentStudent.value = StudentModel.fromJson(userData);
-      debugPrint('===== STUDENT DEBUG =====');
-      debugPrint('Face ID: ${currentStudent.value?.faceId}');
-      debugPrint('Face URL: ${currentStudent.value?.faceImageUrl}');
-      debugPrint('=========================');
-
+      fetchProfile();
       Get.offAllNamed(AppConstants.routeStudentDashboard);
     } else if (savedRole == 'faculty' && userData != null) {
       currentFaculty.value = FacultyModel.fromJson(userData);
+      fetchProfile();
       Get.offAllNamed(AppConstants.routeFacultyDashboard);
     } else if (savedRole == 'admin') {
       Get.offAllNamed(AppConstants.routeAdminDashboard);
     } else {
       Get.offAllNamed(AppConstants.routeLogin);
+    }
+  }
+
+  Future<void> fetchProfile() async {
+    try {
+      final resp = await _api.get('/auth/me');
+      final data = resp.data as Map<String, dynamic>;
+      final r = data['role'] as String?;
+      if (r == 'student' && data['user'] != null) {
+        currentStudent.value = StudentModel.fromJson(data['user']);
+        await StorageService.to.saveUser(data['user']);
+      } else if (r == 'faculty' && data['user'] != null) {
+        currentFaculty.value = FacultyModel.fromJson(data['user']);
+        await StorageService.to.saveUser(data['user']);
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch profile from /auth/me: $e');
     }
   }
 

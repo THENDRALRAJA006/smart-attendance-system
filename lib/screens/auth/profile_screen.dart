@@ -216,11 +216,18 @@ class _InfoSection extends StatelessWidget {
             valueColor: student.hasFaceRegistered ? AppTheme.success : AppTheme.warning,
           ),
         ]);
-      } else if (faculty != null) {
+      } else if (faculty != null || auth.role.value == 'faculty') {
+        final facName = faculty?.name ?? 'Faculty Member';
+        final facEmail = faculty?.email ?? 'faculty@ritchennai.edu.in';
+        final facDept = faculty?.department ?? 'Artificial Intelligence and Machine Learning';
+        final subs = faculty?.subjects ?? [];
+        final subNames = subs.map((s) => s.subjectName).join(', ');
+
         items.addAll([
-          _InfoItem('Email Address', faculty.email, Icons.email_outlined),
-          _InfoItem('Department', faculty.department ?? 'N/A', Icons.school_outlined),
-          _InfoItem('Assigned Subjects', '${faculty.subjects.length} assigned', Icons.book_outlined),
+          _InfoItem('Faculty Name', facName, Icons.person_outline),
+          _InfoItem('Email Address', facEmail, Icons.email_outlined),
+          _InfoItem('Department', facDept, Icons.school_outlined),
+          _InfoItem('Assigned Subjects', subNames.isNotEmpty ? subNames : '${subs.length} assigned', Icons.book_outlined),
         ]);
       }
 
