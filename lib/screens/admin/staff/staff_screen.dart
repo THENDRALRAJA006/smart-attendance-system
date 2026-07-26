@@ -148,6 +148,7 @@ class _StaffScreenState extends State<StaffScreen> {
     final emailCtrl = TextEditingController(text: f?.email ?? '');
     final deptCtrl = TextEditingController(text: f?.department ?? '');
     final phoneCtrl = TextEditingController(text: f?.phoneNumber ?? '');
+    final passCtrl = TextEditingController();
     final isEdit = f != null;
 
     Get.bottomSheet(Container(
@@ -161,6 +162,7 @@ class _StaffScreenState extends State<StaffScreen> {
           const SizedBox(height: 16),
           _field(nameCtrl, 'Full Name'), _field(emailCtrl, 'Email'),
           _field(deptCtrl, 'Department'), _field(phoneCtrl, 'Phone'),
+          if (!isEdit) _field(passCtrl, 'Password (for staff login)', obscureText: true),
           const SizedBox(height: 12),
           SizedBox(width: double.infinity,
             child: ElevatedButton(
@@ -168,8 +170,14 @@ class _StaffScreenState extends State<StaffScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               onPressed: () async {
-                final data = {'name': nameCtrl.text, 'email': emailCtrl.text,
-                  'department': deptCtrl.text, 'phone_number': phoneCtrl.text};
+                final data = {
+                  'name': nameCtrl.text.trim(),
+                  'email': emailCtrl.text.trim(),
+                  'department': deptCtrl.text.trim(),
+                  'phone_number': phoneCtrl.text.trim(),
+                  if (!isEdit && passCtrl.text.trim().isNotEmpty)
+                    'password': passCtrl.text.trim(),
+                };
                 bool ok = isEdit ? await _ctrl.editFaculty(f.id, data)
                     : await _ctrl.createFaculty(data);
                 if (ok) Get.back();
@@ -183,9 +191,9 @@ class _StaffScreenState extends State<StaffScreen> {
     ), isScrollControlled: true);
   }
 
-  Widget _field(TextEditingController c, String label) => Padding(
+  Widget _field(TextEditingController c, String label, {bool obscureText = false}) => Padding(
     padding: const EdgeInsets.only(bottom: 10),
-    child: TextField(controller: c, style: const TextStyle(color: AppTheme.textPrimary),
+    child: TextField(controller: c, obscureText: obscureText, style: const TextStyle(color: AppTheme.textPrimary),
       decoration: InputDecoration(labelText: label,
           labelStyle: const TextStyle(color: AppTheme.textSecondary),
           filled: true, fillColor: AppTheme.cardBg,
