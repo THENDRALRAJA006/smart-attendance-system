@@ -9,12 +9,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 
 import '../../controllers/auth_controller.dart';
 import '../../controllers/erp_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/file_download_helper.dart';
 
 class TeacherReportsScreen extends StatefulWidget {
   const TeacherReportsScreen({super.key});
@@ -415,19 +414,7 @@ class _TeacherReportsScreenState extends State<TeacherReportsScreen> {
     csvBuffer.writeln('6,211623204006,Harish M,CSE (AI&ML),C,42,30,71.42%');
     csvBuffer.writeln('7,211623204007,Kavitha N,CSE (AI&ML),C,42,42,100.00%');
 
-    if (kIsWeb) {
-      try {
-        final bytes = utf8.encode(csvBuffer.toString());
-        final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
-        final url = html.Url.createObjectUrlFromBlob(blob);
-        final anchor = html.AnchorElement(href: url)
-          ..setAttribute('download', fileName)
-          ..click();
-        html.Url.revokeObjectUrl(url);
-      } catch (e) {
-        debugPrint('Web download error: $e');
-      }
-    }
+    downloadReportFile(fileName, csvBuffer.toString(), 'text/csv;charset=utf-8');
 
     Get.snackbar(
       'Export Complete',
