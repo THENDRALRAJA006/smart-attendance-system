@@ -22,7 +22,6 @@ class TeacherReportsScreen extends StatefulWidget {
 
 class _TeacherReportsScreenState extends State<TeacherReportsScreen> {
   late final AuthController _auth;
-  late final ErpController _erp;
 
   String _selectedPeriod = 'Monthly';
   String _selectedSubject = 'All Subjects';
@@ -45,9 +44,6 @@ class _TeacherReportsScreenState extends State<TeacherReportsScreen> {
     _auth = Get.isRegistered<AuthController>()
         ? Get.find<AuthController>()
         : Get.put(AuthController(), permanent: true);
-    _erp = Get.isRegistered<ErpController>()
-        ? Get.find<ErpController>()
-        : Get.put(ErpController(), permanent: true);
   }
 
   @override

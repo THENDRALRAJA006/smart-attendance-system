@@ -307,7 +307,7 @@ class _TeacherTimetableScreenState extends State<TeacherTimetableScreen>
                         onPressed: () async {
                           if (selectedPeriodId == null) return;
                           final ok = await _ctrl.saveSlot(
-                            deptId: selectedDeptId ?? 7,
+                            deptId: selectedDeptId,
                             year: selectedYear,
                             section: selectedSection,
                             dayOfWeek: selectedDay,
