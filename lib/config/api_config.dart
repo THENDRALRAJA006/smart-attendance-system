@@ -1,3 +1,3 @@
 class ApiConfig {
-  static const String baseUrl = "https://tex-marker-elliott-enabling.trycloudflare.com";
+  static const String baseUrl = "https://coupons-office-literature-exclusion.trycloudflare.com";
 }
