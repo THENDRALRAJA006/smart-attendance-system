@@ -34,8 +34,12 @@ class _TeacherReportsScreenState extends State<TeacherReportsScreen> {
   @override
   void initState() {
     super.initState();
-    _auth = AuthController.to;
-    _erp = ErpController.to;
+    _auth = Get.isRegistered<AuthController>()
+        ? Get.find<AuthController>()
+        : Get.put(AuthController(), permanent: true);
+    _erp = Get.isRegistered<ErpController>()
+        ? Get.find<ErpController>()
+        : Get.put(ErpController(), permanent: true);
   }
 
   @override

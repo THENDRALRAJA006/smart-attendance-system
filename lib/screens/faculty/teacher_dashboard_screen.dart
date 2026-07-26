@@ -644,7 +644,7 @@ class _QuickActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = [
       {
-        'label': 'Start\nAttendance',
+        'label': 'Start\nSession',
         'icon': Icons.play_circle_outline_rounded,
         'color': AppTheme.primary,
         'onTap': () => Get.toNamed(AppConstants.routeStartSession),
@@ -682,21 +682,23 @@ class _QuickActions extends StatelessWidget {
             child: GestureDetector(
               onTap: a['onTap'] as VoidCallback,
               child: Container(
-                margin: EdgeInsets.only(right: a == actions.last ? 0 : 10),
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                margin: EdgeInsets.only(right: a == actions.last ? 0 : 8),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: color.withValues(alpha: 0.2)),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(a['icon'] as IconData, color: color, size: 26),
-                  const SizedBox(height: 8),
+                  Icon(a['icon'] as IconData, color: color, size: 24),
+                  const SizedBox(height: 6),
                   Text(a['label'] as String,
                       style: GoogleFonts.poppins(
                           fontSize: 10, fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary),
-                      textAlign: TextAlign.center),
+                          color: AppTheme.textSecondary, height: 1.2),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
                 ]),
               ),
             ),
