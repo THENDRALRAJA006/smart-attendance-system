@@ -495,9 +495,9 @@ class _WelcomeHero extends StatelessWidget {
                 style: GoogleFonts.poppins(
                     color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 12, fontWeight: FontWeight.w400)),
-            Text(name.split(' ').first,
+            Text(name,
                 style: GoogleFonts.poppins(
-                    color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
             if (dept.isNotEmpty)
               Text(dept,
                   style: GoogleFonts.poppins(

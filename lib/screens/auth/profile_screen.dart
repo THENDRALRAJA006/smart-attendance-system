@@ -218,8 +218,9 @@ class _InfoSection extends StatelessWidget {
         ]);
       } else if (faculty != null) {
         items.addAll([
+          _InfoItem('Email Address', faculty.email, Icons.email_outlined),
           _InfoItem('Department', faculty.department ?? 'N/A', Icons.school_outlined),
-          _InfoItem('Subjects', '${faculty.subjects.length} assigned', Icons.book_outlined),
+          _InfoItem('Assigned Subjects', '${faculty.subjects.length} assigned', Icons.book_outlined),
         ]);
       }
 
