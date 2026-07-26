@@ -18,6 +18,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/models.dart';
 import '../../models/timetable_models.dart';
 import '../../widgets/sa_widgets.dart';
+import 'teacher_timetable_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -665,7 +666,7 @@ class _QuickActions extends StatelessWidget {
         'label': 'My\nClasses',
         'icon': Icons.class_outlined,
         'color': AppTheme.accent,
-        'onTap': () {},
+        'onTap': () => Get.to(() => const TeacherTimetableScreen()),
       },
     ];
 

@@ -145,6 +145,8 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
               _buildStatsGrid(session),
               const SizedBox(height: 16),
               _buildRosterSection(session),
+              const SizedBox(height: 16),
+              _buildExportOptionsCard(session),
             ],
           ),
         ),
@@ -485,4 +487,228 @@ class _SessionSummaryScreenState extends State<SessionSummaryScreen> {
       ),
     );
   }
+
+  Widget _buildExportOptionsCard(TeacherSessionModel session) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.cardBorder),
+        boxShadow: AppTheme.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Export & View Options',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'View on-screen register report or download Excel / CSV files',
+            style: TextStyle(
+              color: AppTheme.textHint,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showSessionReportPreview(session),
+                  icon: const Icon(Icons.visibility_outlined, size: 16),
+                  label: const Text(
+                    'View Report',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    side: const BorderSide(color: AppTheme.primary),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _sc.exportSession(session.id, 'xlsx'),
+                  icon: const Icon(Icons.download_rounded, size: 16),
+                  label: const Text(
+                    'Export XLSX',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSessionReportPreview(TeacherSessionModel session) {
+    Get.bottomSheet(
+      Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: const BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.cardBorder,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          session.displayName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Attendance Roster Report (${session.students.length} Students)',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textHint,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Get.back(),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            Expanded(
+              child: session.students.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No student records found in this session',
+                        style: TextStyle(color: AppTheme.textHint),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.all(16),
+                      child: SingleChildScrollView(
+                        child: DataTable(
+                          headingRowColor: WidgetStateProperty.all(AppTheme.bgMuted),
+                          columns: const [
+                            DataColumn(label: Text('#', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Reg No', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Student Name', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Match %', style: TextStyle(fontWeight: FontWeight.bold))),
+                          ],
+                          rows: session.students.asMap().entries.map((e) {
+                            final idx = e.key + 1;
+                            final st = e.value;
+                            final isPresent = st.status == 'present';
+                            return DataRow(
+                              cells: [
+                                DataCell(Text('$idx')),
+                                DataCell(Text(st.regNo)),
+                                DataCell(Text(st.studentName, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: (isPresent ? AppTheme.success : AppTheme.error).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      st.status.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: isPresent ? AppTheme.success : AppTheme.error,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(Text(st.faceConfidence != null
+                                    ? '${(st.faceConfidence! * 100).toStringAsFixed(0)}%'
+                                    : 'N/A')),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: AppTheme.bgPage,
+                border: Border(top: BorderSide(color: AppTheme.cardBorder)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Get.back();
+                        _sc.exportSession(session.id, 'xlsx');
+                      },
+                      icon: const Icon(Icons.download_rounded, size: 18),
+                      label: const Text(
+                        'Download Excel Report',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
 }
+
