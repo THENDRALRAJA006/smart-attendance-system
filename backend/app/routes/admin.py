@@ -102,7 +102,10 @@ async def admin_dashboard(
 
     total_students    = db.query(Student).count()
     total_faculty     = db.query(Faculty).count()
-    total_departments = db.query(func.count(distinct(Student.department))).scalar() or 0
+    dept_count_students = db.query(func.count(distinct(Student.department))).scalar() or 0
+    dept_count_faculty  = db.query(func.count(distinct(Faculty.department))).scalar() or 0
+    dept_count_erp      = db.query(ErpDepartment).count()
+    total_departments   = max(dept_count_students, dept_count_faculty, dept_count_erp)
     total_classrooms  = db.query(Classroom).count()
     total_sessions    = db.query(SessionModel).count()
     active_sessions   = db.query(SessionModel).filter(SessionModel.is_active.is_(True)).count()
