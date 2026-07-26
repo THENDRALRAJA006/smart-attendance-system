@@ -67,6 +67,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
       backgroundColor: AppTheme.bgPage,
       body: RefreshIndicator(
@@ -77,49 +79,97 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen>
           await _sc.fetchMyClasses();
           await _sc.fetchSessionHistory();
         },
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _WelcomeHero(auth: _auth, greeting: _greeting())),
-
-            // ── Today's Schedule ──────────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              final tt = _tt.teacherTimetable.value;
-              if (tt == null) return const SizedBox.shrink();
-              return _TodayScheduleSection(today: tt.today);
-            })),
-
-            // ── Next Period Card ───────────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              final tt = _tt.teacherTimetable.value;
-              if (tt == null) return const SizedBox.shrink();
-              return _NextPeriodCard(tt: tt, sc: _sc);
-            })),
-
-            // ── Active Session Banner ──────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              final session = _sc.activeSession.value;
-              if (session == null) return const SizedBox.shrink();
-              return _ActiveSessionBanner(session: session, sc: _sc);
-            })),
-
-            // ── Quick Actions ──────────────────────────────
-            SliverToBoxAdapter(child: _QuickActions(sc: _sc)),
-
-            // ── My Classes ────────────────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              if (_sc.myClasses.isEmpty) return const SizedBox.shrink();
-              return _MyClassesSection(classes: _sc.myClasses);
-            })),
-
-            // ── Recent Sessions ───────────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              if (_sc.sessionHistory.isEmpty) return const SizedBox.shrink();
-              return _RecentSessionsSection(sessions: _sc.sessionHistory);
-            })),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
-        ),
+        child: !isDesktop
+            ? CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: _WelcomeHero(auth: _auth, greeting: _greeting())),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final tt = _tt.teacherTimetable.value;
+                    if (tt == null) return const SizedBox.shrink();
+                    return _TodayScheduleSection(today: tt.today);
+                  })),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final tt = _tt.teacherTimetable.value;
+                    if (tt == null) return const SizedBox.shrink();
+                    return _NextPeriodCard(tt: tt, sc: _sc);
+                  })),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final session = _sc.activeSession.value;
+                    if (session == null) return const SizedBox.shrink();
+                    return _ActiveSessionBanner(session: session, sc: _sc);
+                  })),
+                  SliverToBoxAdapter(child: _QuickActions(sc: _sc)),
+                  SliverToBoxAdapter(child: Obx(() {
+                    if (_sc.myClasses.isEmpty) return const SizedBox.shrink();
+                    return _MyClassesSection(classes: _sc.myClasses);
+                  })),
+                  SliverToBoxAdapter(child: Obx(() {
+                    if (_sc.sessionHistory.isEmpty) return const SizedBox.shrink();
+                    return _RecentSessionsSection(sessions: _sc.sessionHistory);
+                  })),
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                ],
+              )
+            : Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1320),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(32, 24, 32, 100),
+                    children: [
+                      _WelcomeHero(auth: _auth, greeting: _greeting()),
+                      const SizedBox(height: 24),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 7,
+                            child: Column(
+                              children: [
+                                Obx(() {
+                                  final tt = _tt.teacherTimetable.value;
+                                  if (tt == null) return const SizedBox.shrink();
+                                  return _NextPeriodCard(tt: tt, sc: _sc);
+                                }),
+                                const SizedBox(height: 20),
+                                Obx(() {
+                                  final session = _sc.activeSession.value;
+                                  if (session == null) return const SizedBox.shrink();
+                                  return _ActiveSessionBanner(session: session, sc: _sc);
+                                }),
+                                const SizedBox(height: 20),
+                                _QuickActions(sc: _sc),
+                                const SizedBox(height: 20),
+                                Obx(() {
+                                  if (_sc.myClasses.isEmpty) return const SizedBox.shrink();
+                                  return _MyClassesSection(classes: _sc.myClasses);
+                                }),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              children: [
+                                Obx(() {
+                                  final tt = _tt.teacherTimetable.value;
+                                  if (tt == null) return const SizedBox.shrink();
+                                  return _TodayScheduleSection(today: tt.today);
+                                }),
+                                const SizedBox(height: 20),
+                                Obx(() {
+                                  if (_sc.sessionHistory.isEmpty) return const SizedBox.shrink();
+                                  return _RecentSessionsSection(sessions: _sc.sessionHistory);
+                                }),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }

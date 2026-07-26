@@ -64,6 +64,8 @@ class _StudentDashboardState extends State<StudentDashboard>
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
       backgroundColor: AppTheme.bgPage,
       body: RefreshIndicator(
@@ -75,106 +77,176 @@ class _StudentDashboardState extends State<StudentDashboard>
         },
         color: AppTheme.primary,
         backgroundColor: AppTheme.bgCard,
-        child: CustomScrollView(
-          slivers: [
-            // ── Profile Hero ───────────────────────────────
-            SliverToBoxAdapter(child: _ProfileHero(
-              auth: _auth,
-              greeting: _greeting(),
-              onMarkAttendance: () async {
-                await _attendance.checkActiveSession();
-                _attendance.reset();
-                Get.toNamed(AppConstants.routeClassroomDetection);
-              },
-            )),
-
-            // ── Face registration warning ──────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              final s = _auth.currentStudent.value;
-              if (s == null || s.hasFaceRegistered) return const SizedBox.shrink();
-              return _FaceWarningBanner();
-            })),
-
-            // ── Mark Attendance CTA ────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                child: SAButton(
-                  label: 'Mark Attendance',
-                  icon: Icons.bluetooth_searching_rounded,
-                  height: 56,
-                  onPressed: () async {
-                    await _attendance.checkActiveSession();
-                    _attendance.reset();
-                    Get.toNamed(AppConstants.routeClassroomDetection);
-                  },
+        child: !isDesktop
+            ? CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: _ProfileHero(
+                    auth: _auth,
+                    greeting: _greeting(),
+                    onMarkAttendance: () async {
+                      await _attendance.checkActiveSession();
+                      _attendance.reset();
+                      Get.toNamed(AppConstants.routeClassroomDetection);
+                    },
+                  )),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final s = _auth.currentStudent.value;
+                    if (s == null || s.hasFaceRegistered) return const SizedBox.shrink();
+                    return _FaceWarningBanner();
+                  })),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      child: SAButton(
+                        label: 'Mark Attendance',
+                        icon: Icons.bluetooth_searching_rounded,
+                        height: 56,
+                        onPressed: () async {
+                          await _attendance.checkActiveSession();
+                          _attendance.reset();
+                          Get.toNamed(AppConstants.routeClassroomDetection);
+                        },
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Obx(() {
+                      final checking = _attendance.isCheckingSession.value;
+                      final session  = _attendance.activeSession.value;
+                      final marked   = session != null && _attendance.alreadyMarked;
+                      if (checking && session == null) return _SessionCheckingCard();
+                      if (session != null && marked) return _AlreadyMarkedCard(session: session);
+                      if (session != null) return _ActiveSessionCard(session: session, attendance: _attendance);
+                      return const SizedBox.shrink();
+                    }),
+                  ),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final stats = _student.dashboardStats.value;
+                    if (stats == null && _student.isLoading.value) return const _Skeleton(height: 130);
+                    if (stats == null) return const SizedBox.shrink();
+                    return _OverallAttendanceCard(stats: stats);
+                  })),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final stats = _student.dashboardStats.value;
+                    if (stats == null) return const SizedBox.shrink();
+                    return _QuickStatsRow(stats: stats);
+                  })),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final schedule = _student.todayScheduleLive;
+                    return _TodayScheduleSection(schedule: schedule.toList());
+                  })),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final stats = _student.dashboardStats.value;
+                    if (stats == null) return const SizedBox.shrink();
+                    return _SubjectSection(stats: stats);
+                  })),
+                  SliverToBoxAdapter(child: Obx(() {
+                    final stats = _student.dashboardStats.value;
+                    if (stats == null || stats.recentHistory.isEmpty) return const SizedBox.shrink();
+                    return _RecentHistorySection(records: stats.recentHistory);
+                  })),
+                  const SliverToBoxAdapter(child: _QuickActionsSection()),
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                ],
+              )
+            : Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1320),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(32, 24, 32, 100),
+                    children: [
+                      _ProfileHero(
+                        auth: _auth,
+                        greeting: _greeting(),
+                        onMarkAttendance: () async {
+                          await _attendance.checkActiveSession();
+                          _attendance.reset();
+                          Get.toNamed(AppConstants.routeClassroomDetection);
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Left column (Active Session, Overall Attendance & Schedule)
+                          Expanded(
+                            flex: 7,
+                            child: Column(
+                              children: [
+                                Obx(() {
+                                  final s = _auth.currentStudent.value;
+                                  if (s == null || s.hasFaceRegistered) return const SizedBox.shrink();
+                                  return _FaceWarningBanner();
+                                }),
+                                Obx(() {
+                                  final checking = _attendance.isCheckingSession.value;
+                                  final session  = _attendance.activeSession.value;
+                                  final marked   = session != null && _attendance.alreadyMarked;
+                                  if (checking && session == null) return _SessionCheckingCard();
+                                  if (session != null && marked) return _AlreadyMarkedCard(session: session);
+                                  if (session != null) return _ActiveSessionCard(session: session, attendance: _attendance);
+                                  return const SizedBox.shrink();
+                                }),
+                                const SizedBox(height: 20),
+                                Obx(() {
+                                  final stats = _student.dashboardStats.value;
+                                  if (stats == null && _student.isLoading.value) return const _Skeleton(height: 130);
+                                  if (stats == null) return const SizedBox.shrink();
+                                  return _OverallAttendanceCard(stats: stats);
+                                }),
+                                const SizedBox(height: 20),
+                                Obx(() {
+                                  final schedule = _student.todayScheduleLive;
+                                  return _TodayScheduleSection(schedule: schedule.toList());
+                                }),
+                                const SizedBox(height: 20),
+                                Obx(() {
+                                  final stats = _student.dashboardStats.value;
+                                  if (stats == null) return const SizedBox.shrink();
+                                  return _SubjectSection(stats: stats);
+                                }),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          // Right column (Mark CTA, Quick Stats, History, Actions)
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              children: [
+                                SAButton(
+                                  label: 'Mark Attendance',
+                                  icon: Icons.bluetooth_searching_rounded,
+                                  height: 56,
+                                  onPressed: () async {
+                                    await _attendance.checkActiveSession();
+                                    _attendance.reset();
+                                    Get.toNamed(AppConstants.routeClassroomDetection);
+                                  },
+                                ),
+                                const SizedBox(height: 20),
+                                Obx(() {
+                                  final stats = _student.dashboardStats.value;
+                                  if (stats == null) return const SizedBox.shrink();
+                                  return _QuickStatsRow(stats: stats);
+                                }),
+                                const SizedBox(height: 20),
+                                Obx(() {
+                                  final stats = _student.dashboardStats.value;
+                                  if (stats == null || stats.recentHistory.isEmpty) return const SizedBox.shrink();
+                                  return _RecentHistorySection(records: stats.recentHistory);
+                                }),
+                                const SizedBox(height: 20),
+                                const _QuickActionsSection(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-
-            // ── Active Session Card ────────────────────────
-            SliverToBoxAdapter(
-              child: Obx(() {
-                final checking = _attendance.isCheckingSession.value;
-                final session  = _attendance.activeSession.value;
-                final marked   = session != null && _attendance.alreadyMarked;
-                if (checking && session == null) {
-                  return _SessionCheckingCard();
-                }
-                if (session != null && marked) {
-                  return _AlreadyMarkedCard(session: session);
-                }
-                if (session != null) {
-                  return _ActiveSessionCard(session: session, attendance: _attendance);
-                }
-                return const SizedBox.shrink();
-              }),
-            ),
-
-            // ── Overall Attendance ─────────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              final stats = _student.dashboardStats.value;
-              if (stats == null && _student.isLoading.value) {
-                return const _Skeleton(height: 130);
-              }
-              if (stats == null) return const SizedBox.shrink();
-              return _OverallAttendanceCard(stats: stats);
-            })),
-
-            // ── Quick Stats ────────────────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              final stats = _student.dashboardStats.value;
-              if (stats == null) return const SizedBox.shrink();
-              return _QuickStatsRow(stats: stats);
-            })),
-
-            // ── Today's Schedule (live 30s poll) ───────────
-            SliverToBoxAdapter(child: Obx(() {
-              final schedule = _student.todayScheduleLive;
-              return _TodayScheduleSection(schedule: schedule.toList());
-            })),
-
-            // ── Subject-wise Attendance ────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              final stats = _student.dashboardStats.value;
-              if (stats == null) return const SizedBox.shrink();
-              return _SubjectSection(stats: stats);
-            })),
-
-            // ── Recent Attendance ──────────────────────────
-            SliverToBoxAdapter(child: Obx(() {
-              final stats = _student.dashboardStats.value;
-              if (stats == null || stats.recentHistory.isEmpty) return const SizedBox.shrink();
-              return _RecentHistorySection(records: stats.recentHistory);
-            })),
-
-            // ── Quick Actions ──────────────────────────────
-            const SliverToBoxAdapter(child: _QuickActionsSection()),
-
-            // ── Bottom padding for floating nav ───────────
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
-        ),
       ),
     );
   }

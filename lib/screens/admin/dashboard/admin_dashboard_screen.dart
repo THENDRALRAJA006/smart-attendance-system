@@ -28,6 +28,8 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ctrl = Get.find<AdminController>();
+    final isDesktop = MediaQuery.of(context).size.width > 800;
+
     return RefreshIndicator(
       onRefresh: ctrl.fetchDashboard,
       color: AppTheme.primary,
@@ -38,21 +40,69 @@ class AdminDashboardScreen extends StatelessWidget {
             child: CircularProgressIndicator(color: AppTheme.primary));
         }
         final s = ctrl.dashboardStats.value;
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-          children: [
-            _SystemOverviewCard(stats: s),
-            const SizedBox(height: 20),
-            _TodayStatsRow(stats: s),
-            const SizedBox(height: 20),
-            _OverviewGrid(stats: s),
-            const SizedBox(height: 20),
-            _AttendanceTrendCard(stats: s),
-            const SizedBox(height: 20),
-            _QuickActionsCard(),
-            const SizedBox(height: 20),
-            _RecentActivityCard(activities: s.recentActivity),
-          ],
+
+        if (!isDesktop) {
+          // ── Mobile APK Mode (100% Untouched) ──
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+            children: [
+              _SystemOverviewCard(stats: s),
+              const SizedBox(height: 20),
+              _TodayStatsRow(stats: s),
+              const SizedBox(height: 20),
+              _OverviewGrid(stats: s),
+              const SizedBox(height: 20),
+              _AttendanceTrendCard(stats: s),
+              const SizedBox(height: 20),
+              _QuickActionsCard(),
+              const SizedBox(height: 20),
+              _RecentActivityCard(activities: s.recentActivity),
+            ],
+          );
+        }
+
+        // ── Web Desktop Mode (Full Width 2-Column Responsive Dashboard) ──
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1320),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(32, 24, 32, 100),
+              children: [
+                _SystemOverviewCard(stats: s),
+                const SizedBox(height: 24),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Main column (Charts & Actions)
+                    Expanded(
+                      flex: 7,
+                      child: Column(
+                        children: [
+                          _TodayStatsRow(stats: s),
+                          const SizedBox(height: 24),
+                          _AttendanceTrendCard(stats: s),
+                          const SizedBox(height: 24),
+                          _QuickActionsCard(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    // Side column (Stats Grid & Recent Activity)
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        children: [
+                          _OverviewGrid(stats: s),
+                          const SizedBox(height: 24),
+                          _RecentActivityCard(activities: s.recentActivity),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         );
       }),
     );
