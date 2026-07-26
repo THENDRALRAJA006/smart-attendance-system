@@ -25,7 +25,7 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
-  final StudentController _ctrl = Get.find<StudentController>();
+  late final StudentController _ctrl;
   bool _loading = true;
   List<Map<String, dynamic>> _subjectStats = [];
   List<Map<String, dynamic>> _monthlyData = [];
@@ -33,6 +33,9 @@ class _ReportsScreenState extends State<ReportsScreen>
   @override
   void initState() {
     super.initState();
+    _ctrl = Get.isRegistered<StudentController>()
+        ? Get.find<StudentController>()
+        : Get.put(StudentController(), permanent: true);
     _tabs = TabController(length: 2, vsync: this);
     _loadData();
   }

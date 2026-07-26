@@ -7,7 +7,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../controllers/auth_controller.dart';
 import '../../controllers/erp_controller.dart';
+import '../../controllers/faculty_controller.dart';
+import '../../controllers/session_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/sa_bottom_nav.dart';
 import 'teacher_dashboard_screen.dart';
@@ -30,6 +33,15 @@ class _TeacherShellState extends State<TeacherShell> {
   @override
   void initState() {
     super.initState();
+    if (!Get.isRegistered<AuthController>()) {
+      Get.put(AuthController(), permanent: true);
+    }
+    if (!Get.isRegistered<SessionController>()) {
+      Get.put(SessionController(), permanent: true);
+    }
+    if (!Get.isRegistered<FacultyController>()) {
+      Get.put(FacultyController(), permanent: true);
+    }
     if (!Get.isRegistered<ErpController>()) {
       Get.put(ErpController(), permanent: true);
     }

@@ -9,7 +9,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../controllers/admin_controller.dart';
+import '../../controllers/attendance_controller.dart';
 import '../../controllers/auth_controller.dart';
+import '../../controllers/erp_controller.dart';
+import '../../controllers/faculty_controller.dart';
+import '../../controllers/student_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/sa_bottom_nav.dart';
 import 'dashboard/admin_dashboard_screen.dart';
@@ -72,6 +77,29 @@ class _AdminShellState extends State<AdminShell> {
     AdminReportsScreen(),
     _MorePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (!Get.isRegistered<AuthController>()) {
+      Get.put(AuthController(), permanent: true);
+    }
+    if (!Get.isRegistered<AdminController>()) {
+      Get.put(AdminController(), permanent: true);
+    }
+    if (!Get.isRegistered<FacultyController>()) {
+      Get.put(FacultyController(), permanent: true);
+    }
+    if (!Get.isRegistered<StudentController>()) {
+      Get.put(StudentController(), permanent: true);
+    }
+    if (!Get.isRegistered<AttendanceController>()) {
+      Get.put(AttendanceController(), permanent: true);
+    }
+    if (!Get.isRegistered<ErpController>()) {
+      Get.put(ErpController(), permanent: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

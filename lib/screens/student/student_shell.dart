@@ -7,7 +7,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../controllers/auth_controller.dart';
+import '../../controllers/attendance_controller.dart';
 import '../../controllers/erp_controller.dart';
+import '../../controllers/student_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/sa_bottom_nav.dart';
 import 'student_dashboard.dart';
@@ -30,6 +33,15 @@ class _StudentShellState extends State<StudentShell> {
   @override
   void initState() {
     super.initState();
+    if (!Get.isRegistered<AuthController>()) {
+      Get.put(AuthController(), permanent: true);
+    }
+    if (!Get.isRegistered<StudentController>()) {
+      Get.put(StudentController(), permanent: true);
+    }
+    if (!Get.isRegistered<AttendanceController>()) {
+      Get.put(AttendanceController(), permanent: true);
+    }
     if (!Get.isRegistered<ErpController>()) {
       Get.put(ErpController(), permanent: true);
     }
