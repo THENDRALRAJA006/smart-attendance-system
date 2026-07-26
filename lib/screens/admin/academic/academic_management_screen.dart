@@ -21,7 +21,9 @@ class AcademicManagementScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final erpCtrl = Get.find<ErpController>();
+    final erpCtrl = Get.isRegistered<ErpController>()
+        ? Get.find<ErpController>()
+        : Get.put(ErpController());
 
     final menuItems = [
       {
@@ -29,42 +31,42 @@ class AcademicManagementScreen extends StatelessWidget {
         'subtitle': 'Manage departments, years & section configs',
         'icon': Icons.business_rounded,
         'color': AppTheme.primary,
-        'route': const DepartmentsScreen(),
+        'page': () => const DepartmentsScreen(),
       },
       {
         'title': 'Subjects',
         'subtitle': 'Create & manage subjects for each department',
         'icon': Icons.menu_book_rounded,
         'color': AppTheme.accent,
-        'route': const ErpSubjectsScreen(),
+        'page': () => const ErpSubjectsScreen(),
       },
       {
         'title': 'Faculty',
         'subtitle': 'Add & assign faculty members with EMP IDs',
         'icon': Icons.people_alt_rounded,
         'color': AppTheme.secondary,
-        'route': const ErpFacultyScreen(),
+        'page': () => const ErpFacultyScreen(),
       },
       {
         'title': 'Classrooms',
         'subtitle': 'Manage lecture halls, labs & seminar halls',
         'icon': Icons.meeting_room_rounded,
         'color': const Color(0xFF10B981),
-        'route': const ErpClassroomsScreen(),
+        'page': () => const ErpClassroomsScreen(),
       },
       {
         'title': 'Period Timings',
         'subtitle': 'Configure daily schedules, breaks & lunch timings',
         'icon': Icons.schedule_rounded,
         'color': const Color(0xFFF59E0B),
-        'route': const PeriodTimingsScreen(),
+        'page': () => const PeriodTimingsScreen(),
       },
       {
         'title': 'Weekly Timetable',
         'subtitle': 'Spreadsheet-style weekly timetable editor',
         'icon': Icons.table_chart_rounded,
         'color': const Color(0xFF8B5CF6),
-        'route': const TimetableEditorScreen(),
+        'page': () => const TimetableEditorScreen(),
       },
     ];
 
@@ -167,57 +169,49 @@ class AcademicManagementScreen extends StatelessWidget {
             const SizedBox(height: 12),
             ...menuItems.map((item) {
               final color = item['color'] as Color;
+              final pageBuilder = item['page'] as Widget Function();
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: GlassmorphismCard(
-                  padding: EdgeInsets.zero,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () => Get.to(() => item['route'] as Widget, transition: Transition.rightToLeft),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
+                  padding: const EdgeInsets.all(16),
+                  onTap: () => Get.to(pageBuilder, transition: Transition.rightToLeft),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(item['icon'] as IconData, color: color, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(item['icon'] as IconData, color: color, size: 22),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item['title'] as String,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppTheme.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    item['subtitle'] as String,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      color: AppTheme.textSecondary,
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              item['title'] as String,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
                               ),
                             ),
-                            const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.textHint, size: 14),
+                            const SizedBox(height: 2),
+                            Text(
+                              item['subtitle'] as String,
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    ),
+                      const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.textHint, size: 14),
+                    ],
                   ),
                 ),
               );

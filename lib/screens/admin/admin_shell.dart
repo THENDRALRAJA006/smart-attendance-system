@@ -193,21 +193,21 @@ class _MorePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final sections = [
       {'label': 'Staff Management', 'icon': Icons.badge_rounded,
-        'color': AppTheme.secondary, 'widget': const StaffScreen()},
+        'color': AppTheme.secondary, 'page': () => const StaffScreen()},
       {'label': 'Classes & Subjects', 'icon': Icons.account_tree_rounded,
-        'color': AppTheme.accent, 'widget': const ClassesScreen()},
+        'color': AppTheme.accent, 'page': () => const ClassesScreen()},
       {'label': 'Face Recognition', 'icon': Icons.face_rounded,
-        'color': AppTheme.primary, 'widget': const FaceManagementScreen()},
+        'color': AppTheme.primary, 'page': () => const FaceManagementScreen()},
       {'label': 'BLE Devices', 'icon': Icons.bluetooth_rounded,
-        'color': Color(0xFF3B82F6), 'widget': const BleManagementScreen()},
+        'color': const Color(0xFF3B82F6), 'page': () => const BleManagementScreen()},
       {'label': 'Device Security', 'icon': Icons.security_rounded,
-        'color': AppTheme.warning, 'widget': const DeviceSecurityScreen()},
+        'color': AppTheme.warning, 'page': () => const DeviceSecurityScreen()},
       {'label': 'Academic Management', 'icon': Icons.school_rounded,
-        'color': AppTheme.accentTeal, 'widget': const AcademicManagementScreen()},
+        'color': AppTheme.accentTeal, 'page': () => const AcademicManagementScreen()},
       {'label': 'Settings', 'icon': Icons.settings_rounded,
-        'color': AppTheme.textSecondary, 'widget': const SettingsScreen()},
+        'color': AppTheme.textSecondary, 'page': () => const SettingsScreen()},
       {'label': 'Audit Logs', 'icon': Icons.history_rounded,
-        'color': AppTheme.error, 'widget': const AuditLogsScreen()},
+        'color': AppTheme.error, 'page': () => const AuditLogsScreen()},
     ];
 
     return ListView(
@@ -220,6 +220,7 @@ class _MorePage extends StatelessWidget {
         const SizedBox(height: 12),
         ...sections.map((s) {
           final color = s['color'] as Color;
+          final pageBuilder = s['page'] as Widget Function();
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
             decoration: BoxDecoration(
@@ -232,8 +233,7 @@ class _MorePage extends StatelessWidget {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
-                onTap: () => Get.to(() => s['widget'] as Widget,
-                    transition: Transition.rightToLeft),
+                onTap: () => Get.to(pageBuilder, transition: Transition.rightToLeft),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   child: Row(children: [
