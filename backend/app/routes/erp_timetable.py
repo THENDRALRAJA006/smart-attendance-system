@@ -250,12 +250,21 @@ def get_student_timetable(
     today_day = datetime.now().strftime("%A")
     now_time = datetime.now().strftime("%H:%M")
 
-    # Find department_id by matching name/short_name or default to 1st dept
+    user_dept = (current_user.department or "").strip()
     dept = db.query(ErpDepartment).filter(
-        (ErpDepartment.short_name == current_user.department) |
-        (ErpDepartment.name == current_user.department)
+        (ErpDepartment.short_name.ilike(user_dept)) |
+        (ErpDepartment.short_name.ilike(f"%{user_dept}%")) |
+        (ErpDepartment.name.ilike(user_dept)) |
+        (ErpDepartment.name.ilike(f"%{user_dept}%"))
     ).first()
-    dept_id = dept.id if dept else 1
+
+    if not dept and ("AI" in user_dept or "Machine Learning" in user_dept):
+        dept = db.query(ErpDepartment).filter(
+            (ErpDepartment.short_name == "AIML") | (ErpDepartment.short_name == "AI&ML") |
+            (ErpDepartment.name.like("%Machine Learning%"))
+        ).first()
+
+    dept_id = dept.id if dept else 7
 
     slots = db.query(WeeklyTimetableSlot).filter(
         WeeklyTimetableSlot.department_id == dept_id,
