@@ -40,6 +40,26 @@ class _TeacherReportsScreenState extends State<TeacherReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final faculty = _auth.currentFaculty.value;
+    final List<String> rawSubjects = [];
+    if (faculty != null && faculty.subjects.isNotEmpty) {
+      for (final s in faculty.subjects) {
+        try {
+          if (s.subjectName.isNotEmpty) {
+            rawSubjects.add(s.subjectName);
+          }
+        } catch (_) {}
+      }
+    }
+    if (rawSubjects.isEmpty) {
+      rawSubjects.addAll(['Computer Networks', 'Mentoring', 'Deep Learning']);
+    }
+    
+    final subjects = <String>{'All Subjects', ...rawSubjects}.toList();
+    final currentSelectedSubject = subjects.contains(_selectedSubject)
+        ? _selectedSubject
+        : subjects.first;
+
     return Scaffold(
       backgroundColor: AppTheme.bgPage,
       appBar: AppBar(
@@ -62,22 +82,10 @@ class _TeacherReportsScreenState extends State<TeacherReportsScreen> {
               )
             : null,
       ),
-      body: Obx(() {
-        final faculty = _auth.currentFaculty.value;
-        final rawSubjects = faculty?.subjects.map((s) => s.subjectName).toList() ??
-            ['Computer Networks', 'Mentoring', 'Deep Learning'];
-        
-        // Eliminate duplicates to prevent DropdownButton assertion crashes
-        final subjects = <String>{'All Subjects', ...rawSubjects}.toList();
-
-        final currentSelectedSubject = subjects.contains(_selectedSubject)
-            ? _selectedSubject
-            : subjects.first;
-
-        return SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── Hero Banner Card ─────────────────────────
@@ -278,10 +286,9 @@ class _TeacherReportsScreenState extends State<TeacherReportsScreen> {
               ],
             ),
           ),
-        );
-      }),
-    );
-  }
+        ),
+      );
+    }
 
   Widget _statCard(String value, String label, IconData icon, Color color) {
     return Expanded(
