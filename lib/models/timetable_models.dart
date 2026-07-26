@@ -1,8 +1,4 @@
 // ============================================================
-// SmartAttend — Timetable Models (v13 ERP Compatibility)
-// ============================================================
-
-import 'erp_models.dart';
 
 // ─── Timetable Entry (for student + teacher views) ────────
 class TimetableEntryModel {

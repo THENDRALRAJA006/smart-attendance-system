@@ -23,7 +23,6 @@ import 'ble/ble_management_screen.dart';
 import 'reports/admin_reports_screen.dart';
 import 'settings/settings_screen.dart';
 import 'audit/audit_logs_screen.dart';
-import 'timetable/admin_timetable_screen.dart';
 import 'academic/academic_management_screen.dart';
 
 class AdminShell extends StatefulWidget {

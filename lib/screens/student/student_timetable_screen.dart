@@ -424,14 +424,6 @@ class _ScheduleCard extends StatelessWidget {
     }
   }
 
-  Color get _statusColor {
-    switch (entry.status) {
-      case 'active':    return AppTheme.success;
-      case 'completed': return AppTheme.textHint;
-      default:          return AppTheme.accent;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (entry.isNonTeaching) {

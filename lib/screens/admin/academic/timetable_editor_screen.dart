@@ -9,7 +9,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../controllers/erp_controller.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../models/erp_models.dart';
-import '../../../widgets/glassmorphism_card.dart';
 
 class TimetableEditorScreen extends StatefulWidget {
   const TimetableEditorScreen({super.key});
