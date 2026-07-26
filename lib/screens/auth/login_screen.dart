@@ -166,12 +166,16 @@ class _LoginScreenState extends State<LoginScreen>
                   opacity: _fadeAnim,
                   child: SlideTransition(
                     position: _slideAnim,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        children: [
-                          // ── White card ─────────────────────
-                          Container(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 480),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            children: [
+                              // ── White card ─────────────────────
+                              Container(
                             padding: const EdgeInsets.all(28),
                             decoration: BoxDecoration(
                               color: AppTheme.bgCard,
@@ -324,10 +328,12 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
-    );
+      ],
+    ),
+  ),
+);
   }
 
   InputDecoration _inputDecoration({
